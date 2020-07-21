@@ -1,0 +1,1077 @@
+---
+title: |   
+       | U.S. High School Track & Field 
+       |    and Cross-Country Data Analysis
+subtitle: "Data Science 2019 Fall Final Project"
+author: "Wei-Hua Hsu (Wafer)"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+header-includes:
+ - \newcommand{\bcenter}{\begin{center}}
+ - \newcommand{\ecenter}{\end{center}}
+geometry: margin = 0.5in
+params:
+  solutions: yes
+fontsize: 12pt
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo       = TRUE, 
+                      fig.height = 4.8, 
+                      fig.width  = 7.8,
+                      fig.align  = "center")
+# -- General --
+library(tidyverse)
+library(purrr)           # map function
+library(ggplot2)         # visualization
+library(ggthemes)        # set theme
+  theme_set(theme_bw())       
+library(ggpubr)          # arrange plots side-by-side
+# -- Data Driven --
+library(xml2)            # read html
+library(rvest)           # read html table
+library(readxl)          # read excel file
+library(lubridate)       # parse date
+# -- Other --
+library(usmap)           # visualize the US map
+```
+
+\newpage    
+
+### TO DO LIST
+- single match for athletes, less oxgen
+- training in CO/arizona, adapt the body, getting more efficient (blood thick/more oxgen)
+- 10 years
+- shiny.app <8000/ <6000 filter income (EFC table/median)
+- recruiting process
+- predictive modeling (postal code)
+- 1) value 2) good
+-- separate things: 1) predictive model 2008-2018, 2) economy
+- year at the left (shinyapp)
+
+    
+## Introduction    
+   
+In the United States, sports is an important part of American culture. American football is the most popular sport to watch, but running, jogging, and trail running is the most popular exercise people practice daily. Between the U.S. high schools, there are thousands of Track & Field and Cross Country competitions held within colleges and high schools every year. For those students who are dedicated to sports, the performance list is crucial since they would go to college depending on their performance records. However, in the view of colleges, they prefer to recruit new students who are from a middle class or lower income family. In this way the college can save budgets by paying their athletes through the sponsorship from the U.S. government. Under this premise, this study aims to find out which states tend to have more elite athletes. In addition to personal training and genetic strength, many studies indicate the environmental factors can have a significant effect on athlete’s performance. Therefore, I plan to explore the relationship between player performance and climate factors (rainfall, temperature, sun hours, etc.) among states, and then apply the possible results to statewide family household income.  
+  
+  
+  
+  
+  
+## Data Collecting      
+  
+This project will include four main aspects of data:   
+1. The **information of the U.S.**: 50 states and District of Columbia, with state's latitude and longitude.   
+2. The performance list of **top 500 high school athletes**: the top 500 U.S. high school athletes in the sports of Track & Field and Cross Country (XC) in 2018. The datasets are separated by gender, there are three different events 800m, 1600m, 3200m for indoor/outdoor Track & Field (ITF and OTF), and the XC comes with 5k performance list. The athlete's hometown and the time he/she finished the race are included.    
+  
+  | Indoor Track & Field | Outdoor Track & Field | Cross Country |
+  |:---------------------|:----------------------|:--------------|
+  | boys_800m            | boys_800m             | boys_XC_5k    |  
+  | girls_800m           | boys_800m             | girls_XC_5k   |
+  | boys_1600m           | boys_1600m            |               |
+  | girls_1600m          | girls_1600m           |               |
+  | boys_1600m           | boys_3200m            |               |
+  | girls_1600m          | girls_3200m           |               |
+    
+3. **U.S. Climate data**: all statewide climate data are classified by year, including temperature, rainfall inches, humidity, sunshine hours, wind speed, and elevations.  
+     
+  | Climate Data                     |
+  |:---------------------------------|
+  | average *temperature*            | 
+  | average *precipitation*          |
+  | morning and afternoon *humidity* |
+  | annual *sunshine hours*          | 
+  | average *wind speed*             |
+  | highest/lowest *elevations*      | 
+  
+4. **U.S. Social Economy data**: median household income by state (2013-2017).  
+  
+   
+   
+   
+   
+## Study Questions    
+  
+**1.** What does the statewide player performance looks like? Are there some states tend to have better performance?  
+**2.** Does climate matter? How does the climate factors (temperature, rainfall inches, humidity, sunshine hours, wind speed, elevations) relate to elite athletes in the U.S.?  
+**3.** How wealthy are those outstanding athletes? Is there any lower-income state that tends to have a better performance of athletes?     
+  
+  
+  
+  
+  
+## Overview of results  
+  
+1. The indoor/outdoor Track & Field list shows different relationship between athletes with different states.     
+2. People from northeastern, west coast (WA, CA), and southern (TX, FL) of the United States engage more in sports, and the western inland states of Colorado and Utah are second popular with sports.    
+2. Climate and natural conditions do affect players' performance in a certain aspect.    
+3. Female athletes are more spread out between states than male athletes.     
+4. Natural phenomenons such as the population from each state need to be taken into consideration.    
+5. The Cross Country results are evenly distributed.    
+  
+  
+  
+  
+  
+## Data import, cleaning, and tidying    
+    
+### 1. State information in the U.S.    
+  
+- I found a data file with each state's information. But I do not need "medals" info and this data miss West Virginia and South Dakota, I tidy and add more info on it.     
+```{r Import_state info}
+# import
+state_info <- read_csv("./data/state_info.csv")
+# tidy
+state_info <- state_info %>%
+  select(-medals) %>%
+  bind_rows(list(state = c("WV", "SD"), 
+                 location = c("West Virginia", "South Dakota"), 
+                 lat = c(39.000000, 44.500000), 
+                 lon = c(-80.500000, -100.000000)))
+# dataset - state_info
+```
+```{r, include=FALSE}
+head(state_info, 10)
+```
+  
+- To draw a U.S. map, I found an useful package "usmap", this dataset has a more detailed position information, and it helps me with graphing the map.
+```{r Import_usmap}
+library(usmap)
+# tidy & save
+usmap <- map_data("state") %>%
+  select(1, 2, 3, 5)
+# dataset - usmap
+```
+```{r, include=FALSE}
+head(usmap, 10)
+```
+
+  
+  
+### 2. The performance list of top 500 high school athletes    
+    
+- **Function**: Since the format of high school data are very similar and those are embedded in an excel file. I write 2 functions to tidy the data, one is for tiding the data, the other is to convert the time format to seconds. Then applying `map()` function on the data.
+```{r Fun1_tidy High School}
+## function1 - tidy High School data
+tidy_hs <- function(x) {
+  x %>%
+    slice(which(row_number() %% 2 == 0)) %>%
+    mutate(state = str_extract(`ATHLETE/TEAM`, "(^(?i)[a-z][a-z])")) %>%
+    separate(`ATHLETE/TEAM`, into = c("Empty", "Team"), sep = "(^(?i)[a-z][a-z])") %>% 
+    select(8, 5) %>%
+    mutate(state = str_to_upper(.$state)) %>%
+    
+    # column bind all the second row of data  
+    cbind(
+      x %>%
+        slice(which(row_number() %% 2 == 1)) %>%
+        select(-3) %>%
+        set_names(c("Rank", "Time", "Athlete", "Grade", "Meet/Place")) %>%
+        mutate(Place = str_extract(`Meet/Place`, "(\\d[a-z][a-z])$")) %>%
+        mutate(`Meet/Place` = str_replace(`Meet/Place`, "(\\d[a-z][a-z])$", ""))
+      ) %>%
+    set_names(c("state", "Team", "Rank", "Time", 
+              "Athlete", "Grade", "Meet", "Place")) %>%
+    select(3, 5, 4, 1, 2, 6, 7, 8) %>%
+    
+    # join the state info
+    left_join(state_info, by = "state")
+}
+```
+```{r Fun2_convert to second}
+## function2 - convert time to second 
+count_sec <- function(x) {
+  x <- x %>%
+    separate(Time, into = c("minute", "second"), sep = ":")
+  
+  # set the time variable as numeric
+  x$minute <- as.numeric(x$minute)
+  x$second <- as.numeric(x$second)
+  
+  # calculate the time variable
+  x <- x %>%
+    mutate(Time = (minute * 60) + second) %>%
+    select(1, 2, 13, 5, 10:12, 6:9)
+
+  return(x)
+}
+```
+
+- **Data import**: There are three data files for top 500 high school athletes: 1) indoor Track & Field (*hs_indoor18*); 2) outdoor Track & Field (*hs_outdoor18*); 3) Cross Country (*hs_xc18*). These are high school ranking results with national meeting events in the year of 2018.  
+*Since the codes are basically the same, the code is shown on .pdf file only includes `hs_indoor18`*  
+```{r Import_HS_ITF}
+hs_indoor18 <- "./data/HS_indoor18.xlsx"
+# read excel
+hs_indoor18 <- hs_indoor18 %>%
+  excel_sheets() %>%
+  purrr::set_names() %>%
+  map(read_excel, path = hs_indoor18)
+# tidy & convert the time format
+hs_indoor18 <- map(hs_indoor18, tidy_hs)
+hs_indoor18 <- map(hs_indoor18, count_sec)
+
+# not sure why but this variable couldn't change to numeric automatically
+hs_indoor18$boys_1600m$Rank <- as.numeric(hs_indoor18$boys_1600m$Rank)
+```
+```{r Import_HS_OTF, echo=FALSE}
+hs_outdoor18 <- "./data/HS_outdoor18.xlsx"
+# read excel
+hs_outdoor18 <- hs_outdoor18 %>%
+  excel_sheets() %>%
+  purrr::set_names() %>%
+  map(read_excel, path = hs_outdoor18)
+# tidy & convert the time format
+hs_outdoor18 <- map(hs_outdoor18, tidy_hs)
+hs_outdoor18 <- map(hs_outdoor18, count_sec)
+```
+```{r Import_HS_XC, echo=FALSE}
+hs_xc18 <- "./data/HS_XC18.xlsx"
+# read excel
+hs_xc18 <- hs_xc18 %>%
+  excel_sheets() %>%
+  purrr::set_names() %>%
+  map(read_excel, path = hs_xc18)
+# tidy & convert the time format
+hs_xc18 <- map(hs_xc18, tidy_hs)
+hs_xc18 <- map(hs_xc18, count_sec)
+```
+
+- Take a glance at the high school performance list, the format of the rest of datasets are basically the same.
+```{r}
+head(hs_indoor18$boys_800m, 10)
+head(hs_outdoor18$girls_800m, 10)
+```
+  
+  
+### 3. The U.S. Climate data   
+  
+- For climate data, I do a lot of web scraping as follow.    
+  
+- Average annual temperature by state
+```{r Import_temperature}
+# webscraping
+temp_url <- read_html("https://www.currentresults.com/Weather/US/average-annual-state-temperatures.php")
+temperature <- html_table(temp_url, fill = T)
+
+# tidy & join state_info
+temperature <- rbind(temperature[[1]], temperature[[2]], temperature[[3]]) %>%
+  set_names(c("location", "avg_F", "avg_C", "Rank")) %>%
+  left_join(state_info, by = "location")
+
+# dataset - temperature
+```
+```{r, include=FALSE}
+head(temperature, 10)
+```
+
+
+
+- Average annual precipitation by state
+```{r Import_rainfall}
+# webscraping
+rain_url <- read_html("https://www.currentresults.com/Weather/US/average-annual-state-precipitation.php")
+rainfall <- html_table(rain_url, fill = T)
+
+# tidy & join state_info
+rainfall <- rbind(rainfall[[1]], rainfall[[2]], rainfall[[3]]) %>%
+  set_names(c("location", "Inches", "Millimeters", "Rank")) %>%
+  left_join(state_info, by = "location")
+
+# dataset - rainfall
+```
+```{r, include=FALSE}
+head(rainfall, 10)
+```
+
+- Average annual morning and afternoon humidity (%) by states: Since the row with "Connecticut" and "Massachusetts" contain an unreadable UTF-8 signs, I duplicate the info and delete the former one.  
+```{r Import_humidity}
+# webscraping
+humid_url <- 
+  read_html("https://www.currentresults.com/Weather/US/annual-average-humidity-by-state.php")
+humidity <- html_table(humid_url, fill = T)
+
+# tidy & join state_info
+humidity <- rbind(humidity[[1]], humidity[[2]], humidity[[3]]) %>%
+  set_names(c("location", "place", "morning", "afternoon")) %>%
+  # fix the imput in the row with "location = Connecticut"
+  filter(place != "Hartford" & place != "Boston") %>%
+  bind_rows(list(location  = c("Connecticut", "Massachusetts"),
+                 place     = c("Hartford", "Boston"), 
+                 morning   = c(79, 75), 
+                 afternoon = c(52, 59))
+            ) %>%
+  # join state_info
+  left_join(state_info, by = "location")
+
+# dataset - humidity
+```
+```{r, include=FALSE}
+head(humidity, 10)
+```    
+
+- Average annual sunshine hours by states
+```{r Import_sun hours, warning=FALSE}
+# webscraping
+sun_url <- 
+  read_html("https://www.currentresults.com/Weather/US/average-annual-state-sunshine.php")
+sunshine <- html_table(sun_url, fill = T)
+
+# tidy & join state_info
+sunshine <- rbind(sunshine[[1]], sunshine[[2]], sunshine[[3]]) %>%
+  mutate(location = State) %>%
+  select(6, everything(), -1) %>%
+  mutate(`% Sun` = as.integer(`% Sun`)) %>%
+  mutate(`Total Hours` = as.integer(`Total Hours`)) %>%
+  left_join(state_info, by = "location")
+
+# dataset - sunshine
+```
+```{r, include=FALSE}
+head(sunshine, 10)
+```
+
+- Average Wind Speed by states (with the U.S. Population data): Because the `comma` and the `dash` are read as a "character", it needs more code to change the type of continuous variable.  
+```{r Import_wind speed/population} 
+# webscraping
+windsp_url <- 
+  read_html("http://www.usa.com/rank/us--average-wind-speed--state-rank.htm")
+windspeed <- html_table(windsp_url, fill = T)[[2]]
+
+# tidy & join state_info
+windspeed <- windspeed %>%
+  set_names(c("Rank", "avg_WindSpeed", "location / Population")) %>%
+  slice(2:nrow(windspeed)) %>%
+  separate("location / Population", into = c("location", "Population"), sep = " / ") %>%
+  mutate(Rank = str_replace_all(.$Rank, "\\D", "")) %>%
+  mutate(avg_WindSpeed = str_extract(.$avg_WindSpeed, "\\d\\d.\\d\\d")) %>%
+  mutate(Population = str_replace_all(.$Population, "\\D", "")) %>%
+  mutate(avg_WindSpeed = as.numeric(avg_WindSpeed)) %>%
+  mutate(Population = as.numeric(Population)) %>%
+  mutate(Rank = as.numeric(Rank)) %>%
+  left_join(state_info, by = c("location"))
+
+# dataset - windspeed
+```
+```{r, include=FALSE}
+head(windspeed, 10)
+```
+
+- Elevations by states: Because the `comma` and the `dash` are read as a "character", it needs more code to change the type of continuous variable.  
+```{r Import_elevations}
+# webscraping
+elev_url <- 
+  read_html("https://www.infoplease.com/world/united-states-geography/highest-lowest-and-mean-elevations-united-states")
+elevation <- html_table(elev_url, fill = T)[[1]]
+
+# tidy & join state_info
+elevation <- elevation %>%
+  set_names(c("location",      "avg_Elevation", 
+              "Highest Point", "Highest Elevation", 
+              "Lowest Point",  "Lowest Elevation")) %>%
+  mutate(avg_Elevation = str_replace_all(.$avg_Elevation, ",", "")) %>%
+  mutate(avg_Elevation = as.numeric(avg_Elevation)) %>%
+  mutate(`Highest Elevation` = str_replace_all(.$`Highest Elevation`, ",", "")) %>%
+  mutate(`Highest Elevation` = as.numeric(`Highest Elevation`)) %>% 
+  mutate(`Lowest Elevation` = str_replace_all(.$`Lowest Elevation`, "Sea level", "0")) %>%
+  mutate(`Lowest Elevation` = str_replace_all(.$`Lowest Elevation`, ",", "")) %>%
+  mutate(`Lowest Elevation` = str_replace_all(.$`Lowest Elevation`, "\\D", "-")) %>%
+  mutate(`Lowest Elevation` = as.numeric(`Lowest Elevation`)) %>%
+  mutate(location = str_replace(.$location, "D.C.", "District of Columbia")) %>%
+  left_join(state_info, by = c("location")) %>%
+  na.omit()
+
+# dataset - elevation
+```
+```{r, include=FALSE}
+head(elevation, 10)
+```
+   
+   
+\newpage
+    
+### 4. The U.S. Social Economy data    
+  
+- Median Household Income by State (2013-2017)  
+```{r Import_income, message=FALSE, warning=FALSE}
+# read .csv file
+median_income <- read_csv("./data/Median_Income.csv")
+
+# tidy
+median_income <- median_income %>%
+  set_names(c("location", "Income", "Margin of Error")) %>%
+  slice(3:nrow(median_income)-1) %>%
+  mutate(Income = str_replace_all(.$Income, "\\D", "")) %>%
+  mutate(Income = as.numeric(Income)) %>%
+  mutate(`Margin of Error` = str_replace_all(.$`Margin of Error`, "\\D", "")) %>%
+  mutate(`Margin of Error` = as.numeric(`Margin of Error`)) %>%
+  left_join(state_info, by = "location")
+
+# dataset - median_income
+```
+```{r, include=FALSE}
+head(median_income, 10)
+```
+  
+  
+  
+
+   
+### Question 1
+`What does the statewide player performance looks like? Are there some states tend to have better performance?`  
+
+- Write a function to get the subset of performance data
+```{r Fun3_subset data}
+## function3 - subset data with the frequency of state
+sub_data <- function(x) {
+  x %>%
+    # group by state
+    group_by(state) %>%
+    # aggregate the amount of athletes
+    count() %>%
+    left_join(x, by = "state") %>%
+    group_by(state) %>%
+    # keep the highest ranking of athletes by each state
+    filter(Rank == min(Rank))
+}
+
+sub_otf <- map(hs_outdoor18, sub_data)
+sub_itf <- map(hs_indoor18, sub_data)
+sub_xc <- map(hs_xc18, sub_data)
+
+# the format of sub_otf / sub_itf / sub_xc are basically the same
+# take a glance at one of each
+```
+```{r, include=FALSE}
+head(sub_otf$boys_1600m, 10)
+```
+
+- Visualize the amount of athletes from each state, the bigger the "count circle" is, the greater number of athletes' hometowns are. And the color gradient records the best ranking a state's athlete got. The results are separate by different event and gender.   
+  
+- Indoor Track & Field  
+```{r Visualization_Q1_ITF, warning=FALSE}
+# size = frequency by states
+# rank = the best ranking athlete from the state
+
+# ----- Indoor TF 800m ----- #
+
+ggplot(sub_itf$boys_800m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_itf$boys_800m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#0099FF", high = "red") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Indoor TF boys (800m) - ranking & frequency") -> itf_boys_800m
+
+ggplot(sub_itf$girls_800m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_itf$girls_800m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#FFCC00", high = "#3300FF") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Indoor TF girls (800m) - ranking & frequency") -> itf_girls_800m
+```
+```{r Visualization_Q1_ITF continued, echo=FALSE}
+# ----- Indoor TF 1600m ----- #
+
+ggplot(sub_itf$boys_1600m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_itf$boys_1600m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#0099FF", high = "red") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Indoor TF boys (1600m) - ranking & frequency") -> itf_boys_1600m
+
+ggplot(sub_itf$girls_1600m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_itf$girls_1600m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#FFCC00", high = "#3300FF") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Indoor TF girls (1600m) - ranking & frequency") -> itf_girls_1600m
+
+# ----- Indoor TF 3200m ----- #
+
+ggplot(sub_itf$boys_3200m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_itf$boys_3200m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#0099FF", high = "red") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Indoor TF boys (3200m) - ranking & frequency") -> itf_boys_3200m
+
+ggplot(sub_itf$girls_3200m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_itf$girls_3200m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#FFCC00", high = "#3300FF") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Indoor TF girls (3200m) - ranking & frequency") -> itf_girls_3200m
+```
+As we can see from the indoor results, the higher ranking athletes mostly from northeastern region.  
+```{r Q1_ITF, echo=FALSE, warning=FALSE, fig.height = 5.2, fig.width = 16, fig.align  = "center"}
+ggarrange(itf_boys_800m, itf_girls_800m)
+ggarrange(itf_boys_1600m, itf_girls_1600m)
+ggarrange(itf_boys_3200m, itf_girls_3200m)
+```
+*Since the codes are basically the same, I am hiding the rest of 1600m/3200m codes on the .pdf file.*    
+  
+- Outdoor Track & Field    
+The outdoor results are clearly more spread out, but we can see the west coast states and the southern region states did a better job than the athletes who are from northeastern states.  
+*The codes are hidden on .pdf file*  
+```{r Visualization_Q1_OTF, echo=FALSE}
+# ----- Outdoor TF 800m ----- #
+
+ggplot(sub_otf$boys_800m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_otf$boys_800m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#0099FF", high = "red") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Outdoor TF boys (800m) - ranking & frequency") -> otf_boys_800m
+
+ggplot(sub_otf$girls_800m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_otf$girls_800m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#FFCC00", high = "#3300FF") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Outdoor TF girls (800m) - ranking & frequency") -> otf_girls_800m
+
+# ----- Outdoor TF 1600m ----- #
+
+ggplot(sub_otf$boys_1600m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_otf$boys_1600m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#0099FF", high = "red") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Outdoor TF boys (1600m) - ranking & frequency") -> otf_boys_1600m
+
+ggplot(sub_otf$girls_1600m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_otf$girls_1600m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#FFCC00", high = "#3300FF") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Outdoor TF girls (1600m) - ranking & frequency") -> otf_girls_1600m
+
+# ----- Outdoor TF 3200m ----- #
+
+ggplot(sub_otf$boys_3200m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_otf$boys_3200m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#0099FF", high = "red") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Outdoor TF boys (3200m) - ranking & frequency") -> otf_boys_3200m
+
+ggplot(sub_otf$girls_3200m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_otf$girls_3200m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#FFCC00", high = "#3300FF") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Outdoor TF girls (3200m) - ranking & frequency") -> otf_girls_3200m
+```
+```{r Q1_OTF, echo=FALSE, fig.height = 5.2, fig.width = 16, fig.align  = "center"}
+ggarrange(otf_boys_800m, otf_girls_800m)
+ggarrange(otf_boys_1600m, otf_girls_1600m)
+ggarrange(otf_boys_3200m, otf_girls_3200m)
+```
+
+- Cross Country   
+For the cross country data, I wouldn't not make a conclusion through this plot. Because the outstanding athletes are scatter around. It needs more research (pull up more years data, take a deeper look at their performance of time spending, etc.) to get a possible insight.
+*The codes are hidden on .pdf file*
+```{r Visualization_Q1_XC, echo=FALSE}
+ggplot(sub_xc$boys_XC_5k, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_xc$boys_XC_5k,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#009900", high = "red") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Boys Cross Country - ranking & frequency") -> xc_boys
+
+ggplot(sub_xc$girls_XC_5k, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label states
+  ggrepel::geom_label_repel(aes(label = state), data = sub_xc$girls_XC_5k,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.8)) +
+  scale_color_continuous("Ranking", low = "#009900", high = "red") + 
+  scale_size_continuous("Count", range = c(1, 12)) + 
+  labs(title = "Girls Cross Country - ranking & frequency") -> xc_girls
+```
+```{r Q1_XC, echo=FALSE, warning=FALSE, fig.height = 5.2, fig.width = 16, fig.align  = "center"}
+ggarrange(xc_boys, xc_girls)
+```
+
+- As we can see a similar statewide pattern between events in indoor/outdoor track & field data. I respectively combine the list of all indoor and outdoor datasets, and count the frequency by state (will use this data in Q2 and Q3).
+```{r Summary_Q1 indoor}
+# combine the list of datasets by indoor/outdoor 
+bind_rows(hs_indoor18) %>%
+  group_by(state) %>%
+  count() %>%
+  arrange(desc(n)) -> hs_in18_freq
+
+plot_usmap(data = hs_in18_freq, values = "n", color = "white", labels = TRUE) +
+  scale_fill_continuous(low = "#33CCFF", high = "#FF3300", 
+                        name = "# of athletes", label = scales::comma) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  ggtitle("The distribution of Indoor Track & Field athletes") -> ITF_dist
+```
+*The outdoor codes are hidden on .pdf file*
+```{r Summary_Q1 outdoor, echo=FALSE}
+bind_rows(hs_outdoor18) %>%
+  group_by(state) %>%
+  count() %>%
+  arrange(desc(n)) -> hs_out18_freq
+
+plot_usmap(data = hs_out18_freq, values = "n", color = "white", labels = TRUE) +
+  scale_fill_continuous(low = "#33CCFF", high = "#FF3300", 
+                        name = "# of athletes", label = scales::comma) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  ggtitle("The distribution of Outdoor Track & Field athletes") -> OTF_dist
+```
+
+
+  
+\newpage  
+  
+### Question 2  
+`Does climate matter? How does the climate factors (temperature, rainfall inches, humidity, sunshine hours, wind speed, elevations) relate to elite athletes in the U.S.?`   
+  
+```{r join hs data_Q2}
+hs_freq <- hs_in18_freq %>%
+  left_join(hs_out18_freq, by = "state") %>%
+  set_names(c("state", "indoor_n", "outdoor_n"))
+```
+
+- Average Temperature: rank 1 means the warmest.  
+It's cooler in the northern place, but the athletes' performances are not divided by north and south but east and west. I would suggest the average temperature is not significant on players average performance, but I believe the temperature will be crucial for each local competition.  
+```{r Visualization_Q2_temp indoor}
+# join data
+temperature_hs <- temperature %>%
+  left_join(hs_freq, by = "state")
+
+# visualization
+ggplot(temperature_hs, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = temperature_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = indoor_n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous("Ranking", low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Indoor athletes distribution v.s. Average temperature") -> temp_ITF
+```
+```{r Visualization_Q2_temp outdoor, echo=FALSE}
+ggplot(temperature_hs, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = temperature_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = outdoor_n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous("Ranking", low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor athletes distribution v.s. Average temperature") -> temp_OTF
+```
+```{r Q2_temp, warning=FALSE, fig.height = 5.2, fig.width = 16, fig.align  = "center"}
+ggarrange(temp_ITF, temp_OTF)
+```
+
+- Average Rainfall: rank 1 means more rain.   
+The average rainfall is significant to the indoor/outdoor result, the eastern states tend to perform better at the indoor activities.  
+```{r Visualization_Q2_rain indoor}
+# join data
+rainfall_hs <- rainfall %>%
+  left_join(hs_freq, by = "state")
+
+# visualization
+ggplot(rainfall_hs, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = rainfall_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = indoor_n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Indoor athletes distribution v.s. Average rainfall") -> rain_ITF
+```
+```{r Visualization_Q2_rain outdoor, echo=FALSE}
+ggplot(rainfall_hs, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = rainfall_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = outdoor_n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor athletes distribution v.s. Average rainfall") -> rain_OTF
+```
+```{r Q2_rain, warning=FALSE, fig.height = 5.2, fig.width = 16, fig.align  = "center"}
+ggarrange(rain_ITF, rain_OTF)
+```
+
+- Humidity: the humidity(%) in the morning usually comes with a higher humidity.   
+The humidity is partially important as well.
+```{r Visualization_Q2_humid morning indoor}
+# join data
+humidity_hs <- humidity %>%
+  left_join(hs_freq, by = "state")
+
+# --------- Morning ---------
+ggplot(humidity_hs, aes(x = lon, y = lat, color = morning)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = humidity_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = indoor_n, color = morning, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Indoor athletes distribution v.s. morning humidity") -> morn_humid_ITF
+```
+```{r Visualization_Q2_humid morning outdoor, echo=FALSE}
+ggplot(humidity_hs, aes(x = lon, y = lat, color = morning)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = humidity_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = outdoor_n, color = morning, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor athletes distribution v.s. morning humidity") -> morn_humid_OTF
+```
+```{r Visualization_Q2_humid afternoon indoor, echo=FALSE}
+ggplot(humidity_hs, aes(x = lon, y = lat, color = afternoon)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = humidity_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = indoor_n, color = afternoon, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Indoor athletes distribution v.s. afternoon humidity") -> aft_humid_ITF
+```
+```{r Visualization_Q2_humid afternoon outdoor, echo=FALSE}
+ggplot(humidity_hs, aes(x = lon, y = lat, color = afternoon)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = humidity_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = outdoor_n, color = afternoon, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor athletes distribution v.s. afternoon humidity") -> aft_humid_OTF
+```
+- Showing all plots (morning/afternoon indoor/outdoor)
+```{r Q2_humid, warning=FALSE, fig.height = 5.2, fig.width = 16, fig.align  = "center"}
+ggarrange(morn_humid_ITF, morn_humid_OTF)
+ggarrange(aft_humid_ITF, aft_humid_OTF) 
+```
+
+- Sunshine hours   
+The more sunshine hours the state has, the more better outdoor athletes they would have.
+```{r Visualization_Q2_sun indoor}
+# join data
+sunshine_hs <- sunshine %>%
+  left_join(hs_freq, by = "state")
+
+# visualization
+ggplot(sunshine_hs, aes(x = lon, y = lat, color = `% Sun`)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = sunshine_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = indoor_n, color = `% Sun`, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Indoor athletes distribution v.s. percentage of sun") -> sun_ITF
+```
+```{r Visualization_Q2_sun outdoor, echo=FALSE}
+ggplot(sunshine_hs, aes(x = lon, y = lat, color = `% Sun`)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = sunshine_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = outdoor_n, color = `% Sun`, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor athletes distribution v.s. percentage of sun") -> sun_OTF
+```
+```{r Q2_sun, warning=FALSE, fig.height = 5.2, fig.width = 16, fig.align  = "center"}
+ggarrange(sun_ITF, sun_OTF)
+```
+
+- Windspeed: rank 1 suggests a stronger wind speed.    
+The stronger wind speed by inland north America suggests less well performanced athletes.  
+```{r Visualization_Q2_windsp}
+# join data
+windspeed_hs <- windspeed %>%
+  left_join(hs_freq, by = "state")
+
+# visualization
+ggplot(windspeed_hs, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = windspeed_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = indoor_n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Indoor athletes distribution v.s. Wind speed") -> windsp_ITF
+```
+```{r Visualization_Q2_windsp outdoor, echo=FALSE}
+ggplot(windspeed_hs, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = windspeed_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = outdoor_n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor athletes distribution v.s. Wind speed") -> windsp_OTF
+```
+```{r Q2_windsp, warning=FALSE, fig.height = 5.2, fig.width = 16, fig.align  = "center"}
+ggarrange(windsp_ITF, windsp_OTF)
+```
+
+- Elevation  
+According to the upper two plots, the western region in the North America tends to have a higher highest elevation than in the eastern. I found the indoor list is unrelated to the elevation. However, the last plot with average elevation versus outdoor performance list, the middle west side has higher average elevation, then the west coast is in the second place, the lowest average elevation is in the east region. But the performance list gives a converse result, people in the west (higher elevation) generally have a better performance than the east region (lower elevation) for the outdoor competitions.  
+```{r Visualization_Q2_elevation}
+# join data
+elevation_hs <- elevation %>%
+  left_join(hs_freq, by = "state")
+
+# visualization
+ggplot(elevation_hs, aes(x = lon, y = lat, color = `Highest Elevation`)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = elevation_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = indoor_n, color = `Highest Elevation`, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Indoor athletes distribution v.s. the peak") -> elev_peak_ITF
+```
+```{r Visualization_Q2_elevation outdoor, echo=FALSE}
+ggplot(elevation_hs, aes(x = lon, y = lat, color = `Highest Elevation`)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = elevation_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = outdoor_n, color = `Highest Elevation`, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor athletes distribution v.s. the peak") -> elev_peak_OTF
+
+ggplot(elevation_hs, aes(x = lon, y = lat, color = `Lowest Elevation`)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = elevation_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = outdoor_n, color = `Lowest Elevation`, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor athletes distribution v.s. the deep") -> elev_deep_OTF
+
+ggplot(elevation_hs, aes(x = lon, y = lat, color = `avg_Elevation`)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), 
+                            data = elevation_hs, size = 3, 
+                            label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = outdoor_n, color = `avg_Elevation`, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor athletes distribution v.s. the average Elevation") -> elev_avg_OTF
+```
+```{r Q2_elevation, warning=FALSE, fig.height = 5.2, fig.width = 16, fig.align  = "center"}
+ggarrange(elev_peak_ITF, elev_peak_OTF)
+ggarrange(elev_deep_OTF, elev_avg_OTF)
+```
+
+
+
+\newpage
+  
+### Question 3  
+`How wealthy are those outstanding athletes? Is there any lower-income state that tends to have a better performance of athletes?`   
+  
+- The distribution of elite athletes by indoor and outdoor Track & Field competitions. This map is similar to the household income. Where with more population, in which produces more outstanding athletes.
+```{r Q1_ITF/OTF Dist, echo=FALSE, fig.height = 5.2, fig.width = 16, fig.align  = "center"}
+ggarrange(ITF_dist, OTF_dist)
+```
+- Statewide Population: the population map is similar to the player performance as well as median income.
+```{r Q3_population, fig.height = 3.6, fig.width  = 7.1, fig.align  = "center"}
+plot_usmap(data = windspeed, values = "Population", color = "white", 
+           labels = TRUE, label_color = "grey25") + 
+  scale_fill_continuous(low = "orange", high = "blue", 
+                        name = "Population", label = scales::comma, 
+                        limits = c(575250, 38066921)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "Statewide Population")
+```
+- Median House hole Income: we found there are more population in Texas, Florida, Ohio, and Pennsylvania. The athletes from Texas and Florida are good at outdoor Track & Field competitions (see the distribution of outdoor TF), and the athletes from Ohio and Pennsylvania are better at indoor Track & Field games. What's more, the median household income from these 4 states are lower. It's suggestible to recruit possible well performance and middle class athletes in these states.
+```{r Q3_median income, fig.height = 3.6, fig.width  = 7.1, fig.align  = "center"}
+plot_usmap(data = median_income, 
+           values = "Income", color = "white", labels = TRUE, alpha = 0.9) +
+  scale_fill_continuous(low = "#FFFF00", high = "#0000FF",
+                        name = "Income", label = scales::comma) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "Median Household Income by State (2013-2017)")
+```
+    
+
+
+
+  
+## Conclusion & Future Works
+  
+In summary, people who engage in Track & Field and Cross Country are mostly from popular states such as 	Washington, California, Colorado, Utah, Texas, Florida, Massachusetts, New Jersey, and New York. Besides, these states also have a larger population and higher household income than other states, which means that they have a bigger size of statistical population so that those states accordingly produce more well performanced athletes. 
+Nevertheless, one interesting results I found is that athletes who are from the northeastern United States generally performanced well in `indoor` Track & Field games; however, western, west coast and southern of the United State's athletes did a better job in `outdoor` Track & Field competitions. One possible reason to explain this phenomenon is the climate condition. The climate data results suggested that players' indoor/outdoor performance relates to natural conditions. Which makes sense that the northeastern U.S. is colder, more humid, and less sunshine hours, people would prefer indoor training; in contrast, the west coast and southern of the United States are drier, hotter, less rain, and longer sunshine hours, so in effect the outdoor training is easy and preferable.   
+On the other hand, elite female athletes' are more spread out, they are from many different states instead of gathering between popular states like male athletes. As a matter of fact, the athletes' performance list, climate data by states, and the the population are interrelating. A better climate condition appeals more people to live, a state with more residents gives a larger population size, and a bigger amount of people tends to be more competitive and outstanding. Nevertheless, as we know the respective features of western and northeastern athletes, one may conclude that if the coach would like to recruit indoor Track & Field professionals. The residents from Pennsylvania and Ohio may have some well performance but middle class athletes. For outdoor Track & Field athletes, people from Florida tend to earn a lower income but the amount of outstanding athletes in Florida is actually good enough to beat the athletes in California. Last but not least, players from Texas will be a good second choice.   
+Although there are so many research studies indicate the climate and environment is significant to athletes' performance, my data in fact didn't bother with climate data that much. One possible reason might be athletes nowadays would rather to train themselves in the environment where they can do well. Athletes from Northeastern region usually work on indoor training, and athletes from warmer places focus on the outdoor Track & Fields. Both side basically find their expertise and partially reduce the climate factors. However, I believe the climate factors will be interesting if we analyze their performance between western and eastern outdoor Track & Field competitions. It can be a suggestible future work.
+This preliminary study helps us to find a insight and a possible phenomena among U.S. high school athletes. As we do find some interesting results between the athletes. It would be helpful to do some further analysis, such as pull up the data through athlete's hometown versus the climate condition between countries, or make it deeper for exploring the yearly changes.   
+   
+**The URL for Shiny App**: https://wafer110.shinyapps.io/Shiny_WeiHuaHsu/ 
+
+  
+  
+  
+  
+# Reference  
+- NOAA (National Oceanic and Atmospheric Administration)  
+httpd://WWW.CDC.nova.gov/ca/statewide/mapping/110/PCP/201812/12/value  
+- Current Results  
+://WWW.current results.com/Weather/US/average-annual-state-sunshine.pp  
+https://www.currentresults.com/Weather/US/annual-average-humidity-by-state.php  
+- USA.com  
+http://www.usa.com/rank/us--average-wind-speed--state-rank.htm  
+- Smart Search  
+https://smart-search.app/resources/2019-2020-efc-quick-reference.pdf  
+- Census Bureau  
+https://www.census.gov/search-results.html?searchType=web&cssp=SERP&q=annual%20income  
+- infoplease.com  
+https://www.infoplease.com/world/united-states-geography/highest-lowest-and-mean-elevations-united-states  
+- MileSplit  
+https://www.milesplit.com/  
+- TFRRS  
+https://tfrrs.org/  
+- American University Athletics  
+https://aueagles.com/sports/track-and-field/roster#sidearm-m-roster 
+
+
+
+
+
+
+
+
+
