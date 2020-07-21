@@ -1,0 +1,337 @@
+---
+title: "FinalProj_draft"
+author: "Wafer"
+date: "10/17/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+- pkg(rvest) 
+  to read html table
+```{r}
+try <- html("https://www.tfrrs.org/lists/2675/The_Summit_League_Outdoor_Performance_List/2019/o?gender=m")
+summary(try)
+
+try2 <- html("https://www.milesplit.com/rankings/leaders/high-school-boys/outdoor-track-and-field")
+
+try3 <- xml2::read_html("https://www.milesplit.com/rankings/leaders/high-school-boys/outdoor-track-and-field")
+summary(try3)
+```
+
+### read PDF
+- use **pkg(pdftools)** to read pdf file
+
+1) pull up the ".pdf" file only from the webpage
+2) read the pdf file in a text
+3) turn that text to the dataframe
+
+read in text
+make one variable as a tibble
+parse frist --> cut (section/data)
+- learn how to read text from PDF, learn meterials from *Terry*?
+
+- cheat sheet
+https://www.rexegg.com/regex-quickstart.html 
+
+- You might need to use **stringr** a lot
+  string_split()
+  string_trim()
+  string_extract()
+```{r}
+text <- "1 King, Andrew      SR Johns Hopkins          15:31.93"
+str_split(text, "[ ]{2,3}") %>% 
+  unlist()
+
+# other codes you may need to try in future
+str_trim()
+str_extract(text, "^[ ] ^[ ]+ ^[ ]+ {2,}")
+```
+
+### access : microsoft database sofeware
+file type: mdb
+pkg(rodbc)
+把.mdb file弄出來後, R用ODBC取得該資料
+
+### read html
+- use **pkg(rvest)** & **pkg(xml2)** to read html tables
+
+### PUBG
+url_PUBG <- read_html("https://pubg.op.gg/leaderboard/?platform=steam&mode=fpp&queue_size=4")
+pkg(rvest)
+html_table(pafe, fill = T)[[1]]
+```{r PUBG}
+url_PUBG <- read_html("https://pubg.op.gg/leaderboard/?platform=steam&mode=fpp&queue_size=4")
+html_table(url_PUBG, fill = T)[[1]]
+```
+
+## AU athletes
+```{r}
+url_col <- read_html("https://www.tfrrs.org/teams/DC_college_m_American.html")
+html_table(url_col, fill = T)[[1]]  # 每一區的表格會變成1個list
+html_table(url_col, fill = T)[[2]]  # 取出來自3個list
+html_table(url_col, fill = T)[[3]]  
+```
+
+- AU Men's Track & Field
+```{r}
+tf_m_track <- read_html("https://www.tfrrs.org/teams/DC_college_m_American.html")
+
+# Top Marks
+html_table(tf_m_track, fill = T)[[1]]
+# Roster
+html_table(tf_m_track, fill = T)[[2]]
+# Recent Matches
+html_table(tf_m_track, fill = T)[[3]]
+```
+
+- AU Roster
+Athletes' Profile (Women/Men)
+```{r}
+roster <- read_html("https://aueagles.com/roster.aspx?path=track")
+html_table(roster, fill = T)
+
+# Name / Year / Hometown / High School
+roster_wm <- html_table(roster, fill = T)[[3]]
+roster_m <- html_table(roster, fill = T)[[4]]
+roster_wm
+roster_m
+```
+
+## Climate data
+
+##### ------------------------------- 這個優先
+- yearly avg/max/min Temp & Rainfall data (with map) 
+tmax_2018: https://www.ncdc.noaa.gov/cag/statewide/mapping/110/tmax/201811/12/value
+tmax_2017: https://www.ncdc.noaa.gov/cag/statewide/mapping/110/tmax/201711/12/value
+
+< Current Results >
+-- avg. temperature (1971-2000) lower
+https://www.currentresults.com/Weather/US/average-annual-state-temperatures.php
+-- avg. rainfall (1971-2000)
+https://www.currentresults.com/Weather/US/average-annual-state-precipitation.php
+-- avg. humidity %
+https://www.currentresults.com/Weather/US/annual-average-humidity-by-state.php
+-- avg. sunshine
+https://www.currentresults.com/Weather/US/average-annual-state-sunshine.php
+
+- U.S. Average Wind Speed State Rank
+http://www.usa.com/rank/us--average-wind-speed--state-rank.htm
+
+- Elevations in the United States
+https://www.infoplease.com/world/united-states-geography/highest-lowest-and-mean-elevations-united-states
+
+##### -------------------------------
+
+```{r}
+climate_name <- read_html("https://www.ncdc.noaa.gov/cag/statewide/mapping/110/tmax/201811/12/value")
+html_table(climate_name, fill = T)[[1]]
+```
+
+- 50 State Elevations (without DC)
+https://www.netstate.com/states/tables/state_elevation_mean.htm
+
+- Wind speed data
+1984-2018 observing stations
+https://www1.ncdc.noaa.gov/pub/data/ccd-data/wndspd18.dat
+Map only
+https://windexchange.energy.gov/maps-data/319
+Monthly by states' observing stations
+https://wrcc.dri.edu/Climate/comp_table_show.php?stype=wind_speed_avg.2001-2011
+Yearly in US Cities
+https://www.currentresults.com/Weather/US/wind-speed-city-annual.php
+
+- 180 long-term observing stations
+  avg temperature, rainfall in `2018` & `1981-2010` avg
+avg_temp: https://www.ncdc.noaa.gov/sotc/national/201813/supplemental/page-1/
+rainfall: https://www.ncdc.noaa.gov/sotc/national/201813/supplemental/page-2
+```{r}
+avg_temp <- read_html("https://www.ncdc.noaa.gov/sotc/national/201813/supplemental/page-1/")
+html_table(avg_temp, fill = T)[[1]]
+```
+
+- major U.S. weather observing stations
+  avg temp, rainfall, wind speed, sunshine, humidity
+  Annual data from 19XX ~ 2018 by different observing stations
+https://www.ncdc.noaa.gov/ghcn/comparative-climatic-data 
+https://www.climate.gov/maps-data/dataset/climate-statistics-individual-stations-%E2%80%94-data-tables
+```{r}
+read.delim("./data/hghtmp18.dat")
+```
+
+- climate data
+https://w2.weather.gov/climate/index.php?wfo=phi
+
+- Tutorical
+https://stackoverflow.com/questions/28418770/using-rvest-or-httr-to-log-in-to-non-standard-forms-on-a-webpage
+
+
+## Social economic data
+##### --- USE THIS --- (.csv downloaded)
+- Median Household Income by State (U.S. Census Bureau, 2013-2017)
+https://www.census.gov/search-results.html?searchType=web&cssp=SERP&q=annual%20income
+
+- 2019-2020 estimated Federal EFC (Expected Family Contribution) based on parental income only
+(The current fertility rate is 1.76 in the United States (World Bank; 2017))
+(finantial aids)
+https://smart-search.app/resources/2019-2020-efc-quick-reference.pdf
+
+##### -----------------------------------
+
+- 2017 Guide To College Financial Aid, The FAFSA And CSS Profile
+https://www.forbes.com/sites/troyonink/2017/01/08/2017-guide-to-college-financial-aid-the-fafsa-and-css-profile/#4a5e2c974cd4
+
+- U.S. Median Household Income State Rank (Based on ACS 2010-2014 data)
+http://www.usa.com/rank/us--median-household-income--state-rank.htm?yr=9000&dis=&wist=&plow=&phigh=
+
+## scraping data
+http://bradleyboehmke.github.io/2015/12/scraping-html-tables.html
+
+## Data on TRFFS (college data)
+```{r read pkg}
+library(rvest)
+library(xml2)
+```
+
+- NCAA Division I Indoor Qualifying List
+```{r}
+col_800m_top200 <- 
+  read_html("https://www.tfrrs.org/lists/2279.html?limit=%3C%3D200&event_type=all&year=&gender=x")
+col_800m_men <- html_table(col_800m_top200, fill = T)[[1]]
+col_800m_wmen <- html_table(col_800m_top200, fill = T)[[2]]
+```
+
+
+- Get data through login needed webpage
+- chinese toturial by rvest
+https://weitinglin.com/2017/01/19/%E9%80%B2%E9%9A%8Er%E7%B6%B2%E8%B7%AF%E7%88%AC%E8%9F%B2%E5%88%A9%E7%94%A8rvest%E4%BE%86%E7%88%AC%E5%8F%96%E9%9C%80%E8%A6%81%E5%B8%B3%E8%99%9F%E5%AF%86%E7%A2%BC%E7%99%BB%E5%85%A5%E7%9A%84%E8%97%A5/
+```{r}
+# login
+https://www.milesplit.com/rankings/events/high-school-boys/cross-country/5000m?year=2018&accuracy=legal&grade=all&conversion=n&page=1
+
+# not login
+https://www.milesplit.com/rankings/pro/high-school-boys/cross-country/5000m?year=2018&accuracy=legal&grade=all&conversion=n&page=1
+
+
+HSmen_5k_top500 <- 
+  read_html("https://www.milesplit.com/rankings/events/high-school-boys/cross-country/5000m?year=2018")
+men_5k <- html_table(HSmen_5k_top500, fill = T)[[1]]
+men_5k
+
+library(chron)
+
+# sol 1
+library(httr)
+library(XML)
+EpiUrl <- "https://www.milesplit.com/rankings/events/high-school-girls/cross-country/5000m?year=2018"
+men <- GET(EpiUrl,authenticate("sgraham@american.edu","aue123"))
+read_men <- read_html(men)
+html_table(read_men, fill = T)[[1]]
+
+## sol 2
+handle <- handle("https://www.milesplit.com") 
+path   <- "login"
+login <- list(
+  Email = "sgraham@american.edu",
+  Password  = "aue123",
+  `next` = 
+   "https://www.milesplit.com/rankings/pro/high-school-boys/cross-country/5000m?year=2018")
+response <- POST(handle = handle, path = path, body = login, encode = "form")
+readHTMLTable(response)[[1]]
+
+html_table(response, fill = T)
+read_html(response)
+
+
+## sol 3
+library(RCurl)
+h <- getCurlHandle(cookiefile = "")
+rdr <- dynCurlReader(h)
+getForm(EpiUrl, login = "sgraham@american.edu", password = "aue123", curl = h, header = rdr$update)
+getURLContent(EpiUrl, curl = h)
+
+
+## sol 4
+my_session <- 
+  html_session("https://www.milesplit.com/rankings/events/high-school-girls/cross-country/5000m?year=2018")
+my_texts <- my_session %>% 
+  html_nodes(".athlete") %>% 
+  html_text()
+
+## sol 5
+login_page <- "https://accounts.milesplit.com/login?next=https:%2F%2Fwww.milesplit.com%2F&site=67&ref="
+pgsession <- html_session(login_page)
+pgform    <- html_form(pgsession)[[1]]
+filled_form <- set_values(pgform,
+                          Email = "sgraham@american.edu",
+                          Password = "aue123")
+filled_form$url <- ""
+submit_form(pgsession,filled_form)
+
+men_url <- "https://www.milesplit.com/rankings/events/high-school-boys/cross-country/5000m?year=2018"
+men <- read_html(jump_to(x = pgsession, url = men_url))
+html_table(men, fill = T)[[1]]
+
+# events = login   
+# pro = not login
+jump_to(x = pgsession, url = men_url)
+# the output of returning men_url back to "/pro" even if I specify my url as "/events"
+
+# sol 6
+men <- read_csv("./data/High School Boys 5K_2018.csv")
+men
+
+men %>%
+  filter(!is.na(RANK))
+```
+
+## State names to abbreviation
+- states abbreviation table
+https://www.infoplease.com/us/postal-information/state-abbreviations-and-state-postal-codes
+```{r}
+## tutorial
+https://stackoverflow.com/questions/5411979/state-name-to-abbreviation-in-r
+
+## bulit in function (but no DC)
+setNames(state.abb, state.name)["Texas"]
+state.abb[match(c("New York", "Virginia"),state.name)]
+state.abb[which(state.name == "District of Columbia")]
+state.abb[grep("New York", state.name)]
+
+states <- tibble(State = state.name, Postal_Code = state.abb) %>%
+  bind_rows(tibble(State = "District of Columbia", Postal_Code = "DC"))
+states
+```
+- High School to state names (top 500)
+https://nces.ed.gov/pubs2010/100largest0809/tables/table_d02.asp
+- High School to state names (top 100) 
+https://high-schools.com/
+
+
+### Universities' zipcode/state info
+https://www.ncsasports.org/best-colleges/best-division-1-mens-track-and-field-colleges
+https://university.graduateshotline.com/
+https://www.4icu.org/us/town/
+http://www.a2zcolleges.com/address_phone/
+
+## join data
+```{r}
+left_join(`your data`, `states`, by = "state")
+```
+
+
+
+
+
+
+
+## data mining
+networks
+a bit calculus
+
+
+
+
+names(windspeed) <- as.character(unlist(windspeed[1,]))

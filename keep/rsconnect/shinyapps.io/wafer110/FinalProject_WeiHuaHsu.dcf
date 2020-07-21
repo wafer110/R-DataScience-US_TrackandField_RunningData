@@ -1,0 +1,13 @@
+name: FinalProject_WeiHuaHsu
+title:
+username:
+account: wafer110
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1550063
+bundleId: 2639179
+url: https://wafer110.shinyapps.io/FinalProject_WeiHuaHsu/
+when: 1575441635.49889
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .Rapp.history|FinalProj_1.Rmd|FinalProj_2.Rmd|FinalProj_notes.Rmd|FinalProject_Presentation_WeiHuaHsu.pdf|FinalProject_Presentation_WeiHuaHsu.pptx|FinalProject_WeiHuaHsu.pdf|FinalProject_WeiHuaHsu.R|FinalProject_WeiHuaHsu.Rmd|presentation.pptx|Question_read HTML.Rmd|ShinyApp/.DS_Store|ShinyApp/.Rapp.history|ShinyApp/FinalProject_WeiHuaHsu.R|data|old_export

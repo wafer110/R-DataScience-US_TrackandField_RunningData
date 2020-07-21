@@ -1,0 +1,921 @@
+---
+title: "FinalProj_2"
+author: "Wafer"
+date: "11/29/2019"
+output: pdf_document
+---
+
+
+## Question 1 
+### What does the player performance look like through different states in the U.S.? Are there some states tend to have better performance?
+
+```{r}
+hs_indoor18$boys_800m %>%
+  filter(Rank <= 10) 
+
+hs_indoor18$girls_800m %>%
+  filter(Rank <= 10)
+hs_outdoor18
+```
+
+```{r}
+ggplot() + 
+  geom_polygon(data=usmap, aes(x=long, y=lat, group = group),color="white", fill="grey92") +
+  geom_point(data = col_outdoor18$wmen_5000m[1:200,], aes(x = lon, y = lat, shape = Level, color = Time)) +
+  #scale_size(name="", range = c(2, 15)) +
+  #guides(size=guide_legend("Rank")) +
+  theme_void() +
+  theme(legend.position = "bottom", legend.box = "vertical")
+
+
+col_outdoor18$wmen_5000m <- col_outdoor18$wmen_5000m %>%
+  mutate(Level = cut(col_outdoor18$men_5000m$Rank, 
+                     breaks = c(-Inf, 100, 200, 300, 400, Inf), 
+                     labels = c("Elite+++++", "Supreme++++", 
+                                "Master+++", "Legendary++", "Distinguished+"), 
+                     right = TRUE))
+
+plot_usmap(data = windspeed, values = "Population", color = "blue") + 
+   scale_fill_continuous(
+     low = "white", high = "blue", name = "Population", label = scales::comma) + 
+   theme(legend.position = "right")
+
+windspeed %>%
+  arrange(desc(Population))
+
+col_outdoor18$wmen_10000m %>%
+  mutate(Level = cut(col_outdoor18$wmen_10000m$Rank, 
+                     breaks = c(-Inf, 100, 200, 300, 400, Inf), 
+                     labels = c("Elite+++++", "Supreme++++", 
+                                "Master+++", "Legendary++", "Distinguished+"), 
+                     right = TRUE)) %>%
+  group_by(state) %>%
+  count() %>%
+  arrange(desc(n)) -> tryy
+
+tryy %>%
+  left_join(windspeed, by =c("state")) %>%
+  select(1, 2, 3, 6, 7, 8) -> tryy_rankbywindspeed
+
+plot_usmap(data = windspeed, values = "Population", color = "blue") + 
+   scale_fill_continuous(
+     low = "white", high = "blue", name = "Population", label = scales::comma) + 
+   theme(legend.position = "right")
+
+ggplot() + 
+  geom_polygon(data=usmap, aes(x=long, y=lat, group = group),color="white", fill="grey92") +
+  geom_point(aes(x = tryy$lon, y = tryy$lat), size = tryy$n) +
+  scale_size_continuous(c(1,10)) +
+  #scale_size(name="", range = c(1, 5)) +
+  #guides(colour = guide_legend(override.aes = list(size=0.3)))
+  
+```
+
+
+```{r}
+# high school 800m
+plot_usmap(data = hs_outdoor18$boys_800m, values = "Rank", color = "blue") + 
+  scale_fill_continuous(
+    low = "white", high = "blue", name = "Ranking", label = scales::comma) + 
+  theme(legend.position = "right")
+
+# college 800m
+plot_usmap(data = col_outdoor18$men_800m, values = "Rank", color = "red") + 
+  scale_fill_continuous(
+    low = "white", high = "red", name = "Ranking", label = scales::comma) + 
+  theme(legend.position = "right")
+
+
+ggplot() + 
+  geom_polygon(data=usmap, aes(x=long, y=lat, group = group),color="white", fill="grey92") +
+  geom_point(aes(x = col_outdoor18$men_800m$lon, y = col_outdoor18$men_800m$lat))
+```
+
+
+```{r}
+library(cartography)
+library(sf)
+
+ggplot(tryy, aes(x = lon, y = lat)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  geom_point(aes(size = n, color = Rank)) +
+  scale_size_continuous(range = c(1, 10)) 
+```
+
+# Q1 visualization - ranking
+- use plot_usmap() get regional ranking with different color
+- no specific pattern, distribute randomly
+```{r}
+plot_usmap(data = hs_outdoor18$boys_800m, values = "Rank", color = "blue", labels = TRUE) + 
+  scale_fill_continuous(low = "white", high = "blue", 
+                        name = "Ranking", label = scales::comma, limits = c(0, 150)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "College outdoor TF men (800m) - top 150")
+  
+
+plot_usmap(data = hs_outdoor18$girls_800m, values = "Rank", color = "red", labels = TRUE) + 
+  scale_fill_continuous(low = "white", high = "red", 
+                        name = "Ranking", label = scales::comma, limits = c(0, 150)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "College outdoor TF women (800m) - top 150")
+```
+
+```{r}
+plot_usmap(data = col_outdoor18$men_1500m, values = "Rank", color = "blue", labels = TRUE) + 
+  scale_fill_continuous(low = "white", high = "blue", 
+                        name = "Ranking", label = scales::comma, limits = c(0, 150)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "College outdoor TF men (800m) - top 150") -> begin_OTF_1500_top150_m
+
+ggsave("begin_OTF_1500_top150_wm.png", width = 20, height = 12, units = "cm")
+  
+
+plot_usmap(data = col_outdoor18$wmen_1500m, values = "Rank", color = "red", labels = TRUE) + 
+  scale_fill_continuous(low = "white", high = "red", 
+                        name = "Ranking", label = scales::comma, limits = c(0, 150)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "College outdoor TF women (800m) - top 150") -> begin_OTF_1500_top150_wm
+
+ggsave("begin_OTF_1500_top150_m.png", width = 20, height = 12, units = "cm")
+```
+```{r}
+plot_usmap(data = col_outdoor18$men_5000m, values = "Rank", color = "blue", labels = TRUE) + 
+  scale_fill_continuous(low = "white", high = "blue", 
+                        name = "Ranking", label = scales::comma, limits = c(0, 150)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "College outdoor TF men (800m) - top 150") 
+  
+
+plot_usmap(data = col_outdoor18$wmen_5000m, values = "Rank", color = "red", labels = TRUE) + 
+  scale_fill_continuous(low = "white", high = "red", 
+                        name = "Ranking", label = scales::comma, limits = c(0, 150)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "College outdoor TF women (800m) - top 150")
+```
+
+
+
+
+
+# Q1 visualization - frequency (HS)
+
+```{r}
+library(maps)                # map_data() in U.S.
+usmap <- map_data("state")
+```
+
+```{r}
+# function of getting subset 
+sub_rndata <- function(x) {
+  x %>%
+    group_by(state) %>%
+    count() %>%
+    left_join(x, by = "state") %>%
+    group_by(state) %>%
+    filter(Rank == min(Rank))
+}
+
+sub_hs_otf <- map(hs_outdoor18, sub_rndata)
+sub_hs_itf <- map(hs_indoor18, sub_rndata)
+sub_hs_xc <- map(hs_xc18, sub_rndata)
+```
+- **Outdoor**
+```{r}
+# plotting - men 800m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_otf$boys_800m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_hs_otf$boys_800m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#0099FF", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_m_OTF_8
+
+ggsave("q1_m_OTF_8.png", width = 20, height = 12, units = "cm")
+
+# plotting - wmen 800m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_otf$girls_800m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_hs_otf$girls_800m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#0099FF", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_wm_OTF_8
+
+ggsave("q1_wm_OTF_8.png", width = 20, height = 12, units = "cm")
+
+# plotting - men 1600m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_otf$boys_1600m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_hs_otf$boys_1600m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#0099FF", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_m_OTF_16
+
+ggsave("q1_m_OTF_16.png", width = 20, height = 12, units = "cm")
+
+# plotting - wmen 1600m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_otf$girls_1600m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_hs_otf$girls_1600m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#0099FF", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_wm_OTF_16
+
+ggsave("q1_wm_OTF_16.png", width = 20, height = 12, units = "cm")
+
+# plotting - men 3200m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_otf$boys_3200m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_hs_otf$boys_3200m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#0099FF", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_m_OTF_32
+
+ggsave("q1_m_OTF_32.png", width = 20, height = 12, units = "cm")
+
+# plotting - wmen 3200m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_otf$girls_3200m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_hs_otf$girls_3200m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#0099FF", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_wm_OTF_32
+
+ggsave("q1_wm_OTF_32.png", width = 20, height = 12, units = "cm")
+```
+
+- **indoor**
+Athletes in California less likely take part in indoor game
+```{r}
+# plotting - men 800m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_itf$boys_800m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_hs_itf$boys_800m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "blue", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_m_ITF_8
+
+ggsave("q1_m_ITF_8.png", width = 20, height = 12, units = "cm")
+
+# plotting - wmen 800m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_itf$girls_800m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_hs_itf$girls_800m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "blue", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_wm_ITF_8
+
+ggsave("q1_wm_ITF_8.png", width = 20, height = 12, units = "cm")
+
+# plotting - men 1600m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_itf$boys_1600m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_hs_itf$boys_1600m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "blue", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_m_ITF_16
+
+ggsave("q1_m_ITF_16.png", width = 20, height = 12, units = "cm")
+
+# plotting - wmen 1600m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_itf$girls_1600m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_hs_itf$girls_1600m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "blue", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_wm_ITF_16
+
+ggsave("q1_wm_ITF_16.png", width = 20, height = 12, units = "cm")
+
+# plotting - men 3200m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_itf$boys_3200m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_hs_itf$boys_3200m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "blue", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_m_ITF_32
+
+ggsave("q1_m_ITF_32.png", width = 20, height = 12, units = "cm")
+
+# plotting - wmen 3200m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_itf$girls_3200m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_hs_itf$girls_3200m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "blue", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_wm_ITF_32
+
+ggsave("q1_wm_ITF_32.png", width = 20, height = 12, units = "cm")
+```
+
+
+- **cross country**
+```{r}
+# plotting - boys 5k
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_xc$boys_XC_5k, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_hs_xc$boys_XC_5k,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_XC_m_5k
+
+ggsave("q1_XC_m_5k.png", width = 20, height = 12, units = "cm")
+
+# plotting - girls 5k
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_hs_xc$girls_XC_5k, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), data = sub_hs_xc$girls_XC_5k,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) -> q1_XC_wm_5k
+
+ggsave("q1_XC_wm_5k.png", width = 20, height = 12, units = "cm") 
+```
+
+- appendix
+```{r}
+# boy
+plot_usmap(data = hs_indoor18$boys_800m, values = "Rank", color = "red", labels = TRUE) + 
+  scale_fill_continuous(low = "#0066FF", high = "#FF6600", 
+                        name = "Ranking", label = scales::comma, limits = c(0, 500)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "HS indoor TF boys (800m) - top 500") -> begin_hsboy_ITF
+
+ggsave("begin_hsboy_ITF.png", width = 20, height = 12, units = "cm")
+
+# girl
+plot_usmap(data = hs_indoor18$girls_800m, values = "Rank", color = "red", labels = TRUE) + 
+  scale_fill_continuous(low = "#0066FF", high = "#FF6600", 
+                        name = "Ranking", label = scales::comma, limits = c(0, 500)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "HS indoor TF girls (800m) - top 500") -> begin_hsgirl_ITF
+
+ggsave("begin_hsgirl_ITF.png", width = 20, height = 12, units = "cm")
+```
+
+# Q3 
+- As we can see the similiar statewise pattern between different events in high school indoor/outdoor track & field data. I combine the list of indoor and outdoor datasets, counting the frequency in state
+```{r}
+# combine the list of dataset indoor/outdoor 
+bind_rows(hs_indoor18) %>%
+  group_by(state) %>%
+  count() %>%
+  arrange(desc(n)) -> hs_in18_freq
+
+bind_rows(hs_outdoor18) %>%
+  group_by(state) %>%
+  count() %>%
+  arrange(desc(n)) -> hs_out18_freq
+
+# outdoor freq
+plot_usmap(data = hs_out18_freq, values = "n", color = "red", labels = TRUE) +
+  scale_fill_continuous(low = "#33CCFF", high = "#FF3300", 
+                        name = "freq by state", label = scales::comma) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  ggtitle("High School outdoor Track & Field") -> q3_hs_out_freq
+
+ggsave("q3_hs_out_freq.png", width = 20, height = 12, units = "cm")
+
+# player distribution (indoor)
+# CA, otherwise lower income
+plot_usmap(data = hs_in18_freq, values = "n", color = "red", labels = TRUE) +
+  scale_fill_continuous(low = "#33CCFF", high = "#FF3300", 
+                        name = "freq by state", label = scales::comma) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  ggtitle("High School intdoor Track & Field") -> q3_hs_in_freq
+
+ggsave("q3_hs_in_freq.png", width = 20, height = 12, units = "cm")
+
+# median income
+plot_usmap(data = median_income, values = "Income", color = "red", labels = TRUE, alpha = 0.9) +
+  scale_fill_continuous(low = "#FFFF00", high = "#0000FF",
+                        name = "Income", label = scales::comma) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "Median Household Income by State (2013-2017)") -> q3_income
+
+ggsave("q3_income.png", width = 20, height = 12, units = "cm")
+```
+
+
+# Q2
+- temperature
+```{r}
+# rank for temperature, 1 = warmer
+# n frequency for hs outdoor students from states
+temperature %>%
+  left_join(state_position, by = "location") %>%
+  left_join(hs_out18_freq, by = "state") -> temp_outfreq
+
+# plotting
+ggplot(temp_outfreq, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), data = temp_outfreq,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor Athletes v.s. average temperature") -> avg_temp_OTF
+
+ggsave("avg_temp_OTF.png", width = 20, height = 12, units = "cm")
+```
+- rainfall
+```{r}
+# rank for rainfall, 1 = more rain
+# n frequency for hs outdoor students from states
+rainfall %>%
+  left_join(state_position, by = "location") %>%
+  left_join(hs_out18_freq, by = "state") -> rain_outfreq
+
+# plotting
+ggplot(rain_outfreq, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), data = rain_outfreq,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor Athletes v.s. average rainfall") -> rain_out
+
+ggsave("rain_out.png", width = 20, height = 12, units = "cm")
+# ---------------------------------------------------------------------
+rainfall %>%
+  left_join(state_position, by = "location") %>%
+  left_join(hs_in18_freq, by = "state") -> rain_infreq
+
+# plotting
+ggplot(rain_infreq, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), data = rain_infreq,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Indoor Athletes v.s. average rainfall") -> rain
+```
+- humidity
+```{r}
+# humidity in the morning - higher = wet
+# n frequency for hs outdoor students from states
+humidity %>%
+  left_join(state_position, by = "location") %>%
+  left_join(hs_out18_freq, by = "state") %>%
+  na.omit() -> humid_outfreq
+
+# plotting
+ggplot(humid_outfreq, aes(x = lon, y = lat, color = morning)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), data = humid_outfreq,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = morning, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor Athletes v.s. morning humidity") -> morn_humid_OTF
+  
+ggsave("morn_humid_OTF.png", width = 20, height = 12, units = "cm")
+# ---------------------------------------------------------------------
+humidity %>%
+  left_join(state_position, by = "location") %>%
+  left_join(hs_in18_freq, by = "state") %>%
+  na.omit() -> humid_infreq
+
+# plotting
+ggplot(humid_infreq, aes(x = lon, y = lat, color = morning)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), data = humid_infreq,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = morning, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Indoor Athletes v.s. morning humidity") -> morn_humid_ITF
+  
+ggsave("morn_humid_ITF.png", width = 20, height = 12, units = "cm")
+```
+- sunshine
+```{r}
+# n frequency for hs outdoor students from states
+sunshine %>%
+  left_join(state_position, by = "location") %>%
+  left_join(hs_out18_freq, by = "state") %>%
+  na.omit() -> sun_outfreq
+
+# plotting
+ggplot(sun_outfreq, aes(x = lon, y = lat, color = `% Sun`)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), data = sun_outfreq,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = `% Sun`, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor Athletes v.s. percentage of sun") -> sun
+
+ggsave("sun.png", width = 20, height = 12, units = "cm")
+```
+- windspeed
+```{r}
+# rank 1 wind speed = faster
+windspeed %>%
+  left_join(hs_out18_freq, by = "state") -> winds_outfreq
+
+# plotting
+ggplot(winds_outfreq, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), data = winds_outfreq,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor Athletes v.s. wind speed") -> winds
+
+ggsave("winds.png", width = 20, height = 12, units = "cm")
+```
+- elevation
+```{r}
+# rank for rainfall, 1 = more rain
+# n frequency for hs outdoor students from states
+elevation %>%
+  left_join(state_position, by = "location") %>%
+  left_join(hs_out18_freq, by = "state") %>%
+  na.omit() -> elev_outfreq
+
+# plotting
+ggplot(elev_outfreq, aes(x = lon, y = lat, color = `Highest Elevation`)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state, fontface = "italic"), data = elev_outfreq,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = `Highest Elevation`, alpha = 0.9)) +
+  scale_color_continuous(low = "#009900", high = "red") + 
+  scale_size_continuous(range = c(1, 12)) +
+  ggtitle("Outdoor Athletes v.s. Elevation") -> elevation_out
+
+ggsave("elevation_out.png", width = 20, height = 12, units = "cm")
+```
+
+
+
+
+
+
+
+
+- population
+```{r}
+plot_usmap(data = windspeed, values = "Population", color = "white", 
+           labels = TRUE, label_color = "grey25") + 
+  scale_fill_continuous(low = "orange", high = "blue", 
+                        name = "Population", label = scales::comma, 
+                        limits = c(575251, 38066920)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "Statewide Population")
+
+
+plot_usmap(data = windspeed, values = "Population", color = "red", 
+           labels = TRUE, label_color = "grey25") + 
+  scale_fill_continuous(low = "white", high = "red", 
+                        name = "Population", 
+                        limits = c(575251, 38066920)) +
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black"))
+
+
+
+left_join(usmap1, windspeed2, by = "state") -> usjoinwind
+windspeed %>%
+  select(`Avg. Wind Speed`, state, Population) -> windspeed2
+
+library(mapproj)  # coord_map() projection
+
+ggplot(data = usjoinwind, aes(x = long, y = lat, group = group, fill = Population)) +
+  geom_polygon(color = "gray90", size = 0.1)  +
+  coord_map(projection = "albers", lat0 = 39, lat1 = 45) +
+  labs(title = "???", fill = NULL) +
+  #theme_map() + 
+  theme(legend.position = "right",
+        panel.background = element_rect(colour = "Black")) +
+  scale_fill_gradient(low = "orange", high = "blue") + # for continuous variable 
+  ggrepel::geom_label_repel(aes(label = state), data = usjoinwind)
+
+
+
+
+```
+
+
+
+
+
+
+
+
+## keep 
+- ggsave
+```{r}
+# single pic
+ggsave("pop.png", width = 20, height = 12, units = "cm")
+ggsave("otf_girls_3200m.png", width = 20, height = 12, units = "cm")
+
+# double pics
+ -> ITF_OTF_Q1
+ggsave("ITF_OTF_Q1.png", width = 33.2, height = 11, units = "cm")
+```
+
+```{r}
+# a plain colors filled US map
+ggplot(data = usmap, mapping = aes(x = long, y = lat, group = group, fill = region)) + 
+  geom_polygon(color = "gray90", size = 0.1) +
+  theme(legend.position = "hide")
+```
+- change color
+```{r}
+install.packages("wesanderson")
+library(wesanderson)
+
+# Box plot
+bp+scale_fill_manual(values=wes_palette(n=3, name="Darjeeling"))
+
+# rainbow
+scale_color_gradientn(colours = rainbow(5)) + 
+```
+- 也是漸層填滿，another solution
+```{r}
+library(mapproj)  # coord_map() projection
+
+ggplot(data = usmap, aes(x = long, y = lat, group = group, fill = region)) +
+  geom_polygon(color = "gray90", size = 0.1)  +
+  coord_map(projection = "albers", lat0 = 39, lat1 = 45) +
+  labs(title = "???", fill = NULL) +
+  theme_map() + 
+  theme(legend.position = "hide")
+  # scale_fill_gradient(low = "orange", high = "blue")  # for continuous variable
+```
+
+
+
+## -----------------------------------------------------
+# Keep (NOT USE) performance by college
+- Function
+```{r}
+# function of getting subset 
+sub_rndata <- function(x) {
+  x1 <- x %>%
+  group_by(state) %>%
+  count()
+  x <- x1 %>%
+    left_join(x, by = "state") %>%
+    group_by(state) %>%
+    filter(Rank == min(Rank))
+  return(x)
+}
+
+sub_col_otf <- map(col_outdoor18, sub_rndata)
+sub_col_itf <- map(col_indoor18, sub_rndata)
+```
+- **outdoor**
+```{r}
+# plotting - wmen 800m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_col_otf$wmen_800m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_col_otf$wmen_800m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank)) +
+  scale_size_continuous(range = c(1, 12)) 
+
+# plotting - men 1500m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_col_otf$men_1500m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_col_otf$men_1500m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank)) +
+  scale_size_continuous(range = c(1, 12)) 
+
+# plotting - wmen 5000m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_col_otf$wmen_5000m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_col_otf$wmen_5000m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank)) +
+  scale_size_continuous(range = c(1, 12))
+
+# plotting - men 10000m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_col_otf$men_10000m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_col_otf$men_10000m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank)) +
+  scale_size_continuous(range = c(1, 12)) 
+```
+
+- **indoor**
+No California
+```{r}
+# plotting - men 800m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_col_itf$men_800m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_col_itf$men_800m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank)) +
+  scale_size_continuous(range = c(1, 12)) 
+
+# plotting - wmen 3000m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_col_itf$men_3000m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_col_itf$wmen_3000m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank)) +
+  scale_size_continuous(range = c(1, 12)) 
+
+# plotting - men 5000m
+# size = freq by states, rank = best ranking in that state
+ggplot(sub_col_itf$men_5000m, aes(x = lon, y = lat, color = Rank)) + 
+  geom_polygon(data = usmap, aes(x = long, y = lat, group = group),
+               color = "white", fill = "grey92") +
+  # label
+  ggrepel::geom_label_repel(aes(label = state), data = sub_col_itf$men_5000m,
+    size = 3, label.size = 0, segment.color = "orange") + 
+  # point size & ranking
+  geom_point(aes(size = n, color = Rank)) +
+  scale_size_continuous(range = c(1, 12)) 
+```
+## -----------------------------------------------------
+
+```{r}
+# mutate level
+hs_indoor18$boys_800m %>%
+  mutate(Level = cut(hs_indoor18$boys_800m$Rank, 
+                     breaks = c(-Inf, 100, 200, 300, 400, Inf), 
+                     labels = c("Elite+++++", "Supreme++++", 
+                                "Master+++", "Legendary++", "Distinguished+"), 
+                     right = TRUE)) -> hs_ITF_b8
+
+# color by 5 levels - hotpot
+plot_usmap(data = hs_ITF_b8, values = "Level",  labels = TRUE) + 
+  theme(legend.position = "right",
+               panel.background = element_rect(colour = "Black")) +
+  labs(title = "A GOOD TITLE") 
+  
+
+ggplot() + 
+  geom_polygon(data=usmap, aes(x=long, y=lat, group = group),color="white", fill="grey92") +
+  geom_point(aes(x = hs_ITF_b8$lon, y = hs_ITF_b8$lat, color = hs_ITF_b8$Level)) +
+  theme(legend.position = "bottom")
+
+# color is the little dots
+ggplot(data = hs_ITF_b8, mapping = aes(x = lon, y = lat)) + 
+  geom_polygon(data=usmap, aes(x=long, y=lat, group = group),color="white", fill="grey92") +
+  geom_point() +
+  ggrepel::geom_label_repel(aes(label = state), data = hs_ITF_b8_best)
+    
+# get rank 1-10 state name
+  hs_ITF_b8 %>%
+    group_by(state) %>%
+    summarise(min(Time)) %>%
+    left_join(state_info, by = "state") %>%
+    arrange(`min(Time)`) %>%
+    slice(1:10) -> hs_ITF_b8_best
+```
+
+
+
+
+
+## Popular states: (WA, CA, CO, UT, TX, FL, MA, NY, NJ)
+
+- Climate data
+```{r}
+## save to offline
+write_csv(temperature, "./data/save/temperature.csv")
+## read offline data
+temp <- read_csv("./data/save/temperature.csv")
+```
+
+
+
+

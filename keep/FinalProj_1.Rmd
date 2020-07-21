@@ -1,0 +1,644 @@
+---
+title: "FinalProj_1"
+author: "Wafer"
+date: "11/17/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(xml2)   # read html
+library(rvest)  # read html table
+library(readxl)
+library(lubridate)  # parse date
+# ---
+library(ggplot2)    # visualization
+library(ggthemes)         # set theme
+  theme_set(theme_bw())       
+library(usmap)      # visualization on the US map
+```
+
+
+
+```{r}
+sub_otf$boys_800m %>%
+  arrange(desc(n))
+
+sub_otf$boys_1600m %>%
+  arrange(desc(n))
+
+sub_otf$boys_3200m %>%
+  arrange(desc(n)) %>%
+  ggplot(x = state, y = n) + geom_bar()
+
+ggplot(data = sub_otf$boys_3200m, mapping = aes(x = state, y = n)) + geom_histogram()
+```
+
+
+## Overview of Results
+
+*[[*  Other than personal training and individual talent, we are wondering that is there any other factors matter, for instance: hometown, average temperature, elevations, humidity, sunshine hours, or rainfall inches.
+
+We were wondering that is the location matter? Does athletes born and raise in different states tend to have a better or bad performance?
+
+In the book of "The Sports Gene" written by David Epstein, he answered how much of athletic excellence is genetic and how much is learned 100% for both.
+https://www.cbsnews.com/news/are-elite-athletes-born-or-made/  *]]*
+
+
+
+
+
+## Data import, cleanning, and tidying
+
+### State Position
+```{r import_state info}
+state_position <- read_csv("./data/state_position.csv")
+
+state_position <- state_position %>%
+  select(-medals) %>%
+  bind_rows(list(state = c("WV", "SD"), 
+                 location = c("West Virginia", "South Dakota"), 
+                 lat = c(39.000000, 44.500000), 
+                 lon = c(-80.500000, -100.000000)))
+
+head(state_position)
+```
+
+
+
+### High School and College   
+  
+**High School**
+For tiding the high school and college data, I use `map()` function since the `.xls` files contain lists of different events in genders. After tiding the data, there are three datasets: *hs_indoor18*, *hs_outdoor18*, and *hs_xc18*.
+  
+- The function for tiding high school datasets.
+```{r fun_tidy High School}
+## function1 - tidy data (for HS)
+tidy_hs <- function(x) {
+  x %>%
+    slice(which(row_number() %% 2 == 0)) %>%
+    mutate(state = str_extract(`ATHLETE/TEAM`, "(^(?i)[a-z][a-z])")) %>%
+    separate(`ATHLETE/TEAM`, into = c("Empty", "Team"), sep = "(^(?i)[a-z][a-z])") %>% 
+    select(8, 5) %>%
+    mutate(state = str_to_upper(.$state)) %>%
+    cbind(
+      x %>%
+        slice(which(row_number() %% 2 == 1)) %>%
+        select(-3) %>%
+        set_names(c("Rank", "Time", "Athlete", "Grade", "Meet/Place")) %>%
+        mutate(Place = str_extract(`Meet/Place`, "(\\d[a-z][a-z])$")) %>%
+        mutate(`Meet/Place` = str_replace(`Meet/Place`, "(\\d[a-z][a-z])$", ""))
+      ) %>%
+    set_names(c("state", "Team", "Rank", "Time", 
+              "Athlete", "Grade", "Meet", "Place")) %>%
+    select(3, 5, 4, 1, 2, 6, 7, 8) %>%
+    left_join(state_position, by = "state")
+}
+```
+
+- A function to calculate the time variable in seconds.
+```{r fun_calculate sec}
+## function2 - calculate time in seconds (for HS)
+count_sec <- function(x) {
+  x <- x %>%
+    separate(Time, into = c("minute", "second"), sep = ":")
+  
+  # set the time variable as numeric
+  x$minute <- as.numeric(x$minute)
+  x$second <- as.numeric(x$second)
+  
+  # calculate the time variable
+  x <- x %>%
+    mutate(Time = (minute * 60) + second) %>%
+    select(1, 2, 13, 5, 10:12, 6:9)
+
+  return(x)
+}
+```
+
+- High School: indoor Track & Field data
+```{r HS_ITF}
+hs_indoor18 <- "./data/HS_indoor18.xlsx"
+hs_indoor18 <- hs_indoor18 %>%
+  excel_sheets() %>%
+  set_names() %>%
+  map(read_excel, path = hs_indoor18)
+
+hs_indoor18 <- map(hs_indoor18, tidy_hs)
+hs_indoor18 <- map(hs_indoor18, count_sec)
+
+# not sure why but this variable didn't change to numeric automatically
+hs_indoor18$boys_1600m$Rank <- as.numeric(hs_indoor18$boys_1600m$Rank)
+```
+  
+- High School: outdoor Track & Field data
+```{r HS_OTF}
+hs_outdoor18 <- "./data/HS_outdoor18.xlsx"
+hs_outdoor18 <- hs_outdoor18 %>%
+  excel_sheets() %>%
+  set_names() %>%
+  map(read_excel, path = hs_outdoor18)
+
+hs_outdoor18 <- map(hs_outdoor18, tidy_hs)
+hs_outdoor18 <- map(hs_outdoor18, count_sec)
+```
+
+- High School: Cross Country (XC)
+```{r HS_XC}
+hs_xc18 <- "./data/HS_XC18.xlsx"
+hs_xc18 <- hs_xc18 %>%
+  excel_sheets() %>%
+  set_names() %>%
+  map(read_excel, path = hs_xc18)
+
+hs_xc18 <- map(hs_xc18, tidy_hs)
+hs_xc18 <- map(hs_xc18, count_sec)
+```
+
+
+**College**   
+Owing to the data formats are different, I can only keep using the same commend from high school data. Firstly, the indoor college data are shown with 2017-2018 and 2018-2019, I combine 2018 data after tiding the raw data.  Secondly, the college data have no state information, the only easier way to get state info is to join the data with 2018 meeting games data. Therefore, the state info in college data is not the athletes' hometown but the place at which the game happened. Lastly, there is no cross country rankings available. After tiding the data, there are two college datasets: *col_outdoor18* and *col_indoor18*.  
+
+- The function for tiding college datasets.
+```{r fun_tidy College}
+## function3 - tidy data (for college)
+tidy_col <- function(x) {
+  x %>%
+    mutate(Time = str_replace(TIME2, "\\D+$", "")) %>%
+    mutate(Time = str_pad(Time, 8, side = "left", pad = "0")) %>%
+    select(1, 2, 9, 4, 3, 7, 8) %>%
+    set_names(c("Rank", "Athlete", "Time", "Team", "Year", "Meet", "Date")) %>%
+    mutate(Date = ymd(.$Date))
+}
+```
+
+- A function to calculate the time variable in seconds.
+```{r fun_calculate sec}
+## function4 - calculate time in seconds (for college)
+count_sec1 <- function(x) {
+  x <- x %>%
+    separate(Time, into = c("minute", "second"), sep = ":")
+  
+  # set the time variable as numeric
+  x$minute <- as.numeric(x$minute)
+  x$second <- as.numeric(x$second)
+  
+  # calculate the time variable
+  x <- x %>%
+    mutate(Time = (minute * 60) + second) %>%
+    select(1, 2, 9, 5:8)
+
+  return(x)
+}
+```
+
+- College: indoor Track & Field      
+  
+  + 2017-2018 NCAA Division I Indoor Qualifying List (top 500)     
+  + 2018-2019 NCAA Division I Indoor Qualifying List (top 500)  
+    
+  Since the indoor Track & Field data for college in 2018 is combined with part of 2017 and 2019 data, therefore I tidy and combine the data as follow:  
+```{r Col_ITF}
+# college indoor 2017-2018
+col_indoor1718 <- "./data/College_indoor1718.xlsx"
+col_indoor1718 <- col_indoor1718 %>%
+  excel_sheets() %>%
+  set_names() %>%
+  map(read_excel, path = col_indoor1718) 
+
+# college indoor 2018-2019
+col_indoor1819 <- "./data/College_indoor1819.xlsx"
+col_indoor1819 <- col_indoor1819 %>%
+  excel_sheets() %>%
+  set_names() %>%
+  map(read_excel, path = col_indoor1819)
+
+col_indoor1718 <- map(col_indoor1718, tidy_col)
+col_indoor1819 <- map(col_indoor1819, tidy_col)
+
+# bind college data with 1718 & 1819
+col_indoor18 <- map2(col_indoor1718, col_indoor1819, bind_rows)
+
+## function5: extracting 2018 data
+get2018 <- function(x){
+  x %>%
+    mutate(Meet_Year = str_extract(.$Date, "\\d\\d\\d\\d")) %>%
+    filter(Meet_Year == 2018) %>%
+    select(-8) %>%
+    arrange(Rank)
+}
+
+## function6: fixing the ranking
+fix_rank <- function(x) {
+  x <- x %>%
+    separate(Time, into = c("minute", "second"), sep = ":")
+  
+  # set the time variable as numeric
+  x$minute <- as.numeric(x$minute)
+  x$second <- as.numeric(x$second)
+  
+  # calculate time variable
+  x <- x %>%
+    mutate(Time = (minute * 60) + second) %>%
+    arrange(Time) %>%
+    mutate(Rank = row_number()) %>%
+    select(1, 2, 9, 5:8)
+  
+  return(x)
+}
+
+# apply the data with functions
+# get a tidy 2018 college indoor Track & Field data
+col_indoor18 <- map(col_indoor18, get2018)
+col_indoor18 <- map(col_indoor18, fix_rank)
+```
+
+- College: outdoor Track & Field      
+```{r Col_OTF, warning=FALSE}
+col_outdoor18 <- "./data/College_outdoor18.xlsx"
+col_outdoor18 <- col_outdoor18 %>%
+  excel_sheets() %>%
+  set_names() %>%
+  map(read_excel, path = col_outdoor18)
+
+col_outdoor18 <- map(col_outdoor18, tidy_col)
+col_outdoor18 <- map(col_outdoor18, count_sec1)
+```
+
+- College games' meeting info  
+Owing to the college data have no state information, the only easier way to get state info is to join the data with 2018 meeting games data. Therefore, the state info in college data is not where the athlete from but where the game happened.  
+```{r meeting states}
+# get the data of meeting info
+college_meet <- read_excel("./data/TFRRS_meetings_states.xlsx", 1) %>%
+  set_names(c("Date", "Meet", "Sport", "state")) %>% 
+  mutate(Date = str_trunc(Date, 8, side = "left", ellipsis = "")) %>%
+  mutate(Date = mdy(.$Date)) %>%
+  select(Meet, state)
+
+# join State info - outdoor
+# I dob't know why map() function is not working here
+# map() left_join() reduce()...? or forloop or function?
+col_outdoor18$men_800m <- left_join(col_outdoor18$men_800m, college_meet, by = "Meet")
+col_outdoor18$wmen_800m <- left_join(col_outdoor18$wmen_800m, college_meet, by = "Meet")
+col_outdoor18$men_1500m <- left_join(col_outdoor18$men_1500m, college_meet, by = "Meet")
+col_outdoor18$wmen_1500m <- left_join(col_outdoor18$wmen_1500m, college_meet, by = "Meet")
+col_outdoor18$men_5000m <- left_join(col_outdoor18$men_5000m, college_meet, by = "Meet")
+col_outdoor18$wmen_5000m <- left_join(col_outdoor18$wmen_5000m, college_meet, by = "Meet")
+col_outdoor18$men_10000m <- left_join(col_outdoor18$men_10000m, college_meet, by = "Meet")
+col_outdoor18$wmen_10000m <- left_join(col_outdoor18$wmen_10000m, college_meet, by = "Meet")
+
+# join state location - outdoor
+col_outdoor18$men_800m <- left_join(col_outdoor18$men_800m, state_position, by = "state")
+col_outdoor18$wmen_800m <- left_join(col_outdoor18$wmen_800m, state_position, by = "state")
+col_outdoor18$men_1500m <- left_join(col_outdoor18$men_1500m, state_position, by = "state")
+col_outdoor18$wmen_1500m <- left_join(col_outdoor18$wmen_1500m, state_position, by = "state")
+col_outdoor18$men_5000m <- left_join(col_outdoor18$men_5000m, state_position, by = "state")
+col_outdoor18$wmen_5000m <- left_join(col_outdoor18$wmen_5000m, state_position, by = "state")
+col_outdoor18$men_10000m <- left_join(col_outdoor18$men_10000m, state_position, by = "state")
+col_outdoor18$wmen_10000m <- left_join(col_outdoor18$wmen_10000m, state_position, by = "state")
+
+# join State info - indoor
+col_indoor18$men_800m <- left_join(col_indoor18$men_800m, college_meet, by = "Meet")
+col_indoor18$wmen_800m <- left_join(col_indoor18$wmen_800m, college_meet, by = "Meet")
+col_indoor18$men_3000m <- left_join(col_indoor18$men_3000m, college_meet, by = "Meet")
+col_indoor18$wmen_3000m <- left_join(col_indoor18$wmen_3000m, college_meet, by = "Meet")
+col_indoor18$men_5000m <- left_join(col_indoor18$men_5000m, college_meet, by = "Meet")
+col_indoor18$wmen_5000m <- left_join(col_indoor18$wmen_5000m, college_meet, by = "Meet")
+
+# join state location - indoor
+col_indoor18$men_800m <- left_join(col_indoor18$men_800m, state_position, by = "state")
+col_indoor18$wmen_800m <- left_join(col_indoor18$wmen_800m, state_position, by = "state")
+col_indoor18$men_3000m <- left_join(col_indoor18$men_3000m, state_position, by = "state")
+col_indoor18$wmen_3000m <- left_join(col_indoor18$wmen_3000m, state_position, by = "state")
+col_indoor18$men_5000m <- left_join(col_indoor18$men_5000m, state_position, by = "state")
+col_indoor18$wmen_5000m <- left_join(col_indoor18$wmen_5000m, state_position, by = "state")
+
+# check missing values
+is.na(col_outdoor18)
+is.na(col_indoor18)
+
+
+col_outdoor18$men_800m %>%
+  filter(state == "CA") %>%
+  count()
+```
+
+
+
+### Climate  
+Get 8 datasets: elevation, windspeed, sunshine, humidity ,rainfall, min_temperature, max_temperature, and temperature.
+  
+- Average Annual Temperature by State
+```{r avg. temperature}
+temp_url <- read_html("https://www.currentresults.com/Weather/US/average-annual-state-temperatures.php")
+temperature <- html_table(temp_url, fill = T)
+
+# tidy data
+temperature <- rbind(temperature[[1]], temperature[[2]], temperature[[3]]) %>%
+  set_names(c("location", "avg_F", "avg_C", "Rank"))
+ 
+# save to offline
+write_csv(temperature, "./data/save/temperature.csv")
+
+head(temperature)
+```
+
+- Average Annual Precipitation by State
+```{r avg. rainfall}
+rain_url <- read_html("https://www.currentresults.com/Weather/US/average-annual-state-precipitation.php")
+rainfall <- html_table(rain_url, fill = T)
+
+# tidy data 
+rainfall <- rbind(rainfall[[1]], rainfall[[2]], rainfall[[3]]) %>%
+  set_names(c("location", "Inches", "Millimeters", "Rank"))
+ 
+# save to offline
+write_csv(rainfall, "./data/save/rainfall.csv")
+
+head(rainfall)
+```
+
+- Annual morning and afternoon humidity % by states
+```{r avg. humidity}
+humid_url <- 
+  read_html("https://www.currentresults.com/Weather/US/annual-average-humidity-by-state.php")
+humidity <- html_table(humid_url, fill = T)
+
+# tidy data
+humidity <- rbind(humidity[[1]], humidity[[2]], humidity[[3]]) %>%
+  set_names(c("location", "place", "morning", "afternoon"))
+ 
+# save to offline
+write_csv(humidity, "./data/save/humidity.csv")
+
+head(humidity)
+```
+
+- Average Annual Sunshine hours by states
+```{r avg. yearly sun hours}
+sun_url <- 
+  read_html("https://www.currentresults.com/Weather/US/average-annual-state-sunshine.php")
+sunshine <- html_table(sun_url, fill = T)
+
+# tidy data
+sunshine <- rbind(sunshine[[1]], sunshine[[2]], sunshine[[3]]) %>%
+  mutate(location = State) %>%
+  select(6, everything(), -1) %>%
+  mutate(`% Sun` = as.integer(`% Sun`)) %>%
+  mutate(`Total Hours` = as.integer(`Total Hours`))
+
+# save to offline
+write_csv(sunshine, "./data/save/sunshine.csv")
+
+head(sunshine)
+```
+
+- Average Wind Speed & Population by states
+```{r avg. wind speed & population} 
+windsp_url <- 
+  read_html("http://www.usa.com/rank/us--average-wind-speed--state-rank.htm")
+windspeed <- html_table(windsp_url, fill = T)[[2]]
+
+# save to offline
+write_csv(windspeed, "./data/save/windspeed.csv")
+
+# tidy data
+windspeed <- windspeed %>%
+  set_names(c("Rank", "Avg. Wind Speed", "location / Population")) %>%
+  slice(2:nrow(windspeed)) %>%
+  separate("location / Population", into = c("location", "Population"), sep = " / ") %>%
+  mutate(Rank = str_replace_all(.$Rank, "\\D", "")) %>%
+  mutate(`Avg. Wind Speed` = str_extract(.$`Avg. Wind Speed`, "\\d\\d.\\d\\d")) %>%
+  mutate(`Avg. Wind Speed` = as.numeric(`Avg. Wind Speed`)) %>%
+  mutate(Population = str_replace_all(.$Population, "\\D", "")) %>%
+  mutate(Population = as.numeric(Population)) %>%
+  mutate(Rank = as.numeric(Rank)) %>%
+  left_join(state_position, by = c("location"))
+
+head(windspeed)
+```
+
+- Elevations by states
+Because the comma and dash are read as "character", it needs a longer code to change the type of continuous variable.
+```{r elevations}
+elevation_url <- 
+  read_html("https://www.infoplease.com/world/united-states-geography/highest-lowest-and-mean-elevations-united-states")
+elevation <- html_table(elevation_url, fill = T)[[1]]
+
+# save to offline
+write_csv(elevation, "./data/save/elevation.csv")
+elevation <- read_csv("./data/save/elevation.csv")
+
+# tidy data
+elevation <- elevation %>%
+  set_names(c("location",         "Avg. Elevation (ft.)", 
+              "Highest point", "Highest Elevation", 
+              "Lowest point",  "Lowest Elevation")) %>%
+  mutate(`Lowest Elevation` = str_replace_all(.$`Lowest Elevation`, "Sea level", "0")) %>%
+  mutate(`Lowest Elevation` = str_replace_all(.$`Lowest Elevation`, ",", "")) %>%
+  mutate(`Lowest Elevation` = str_replace_all(.$`Lowest Elevation`, "\\D", "-")) %>%
+  mutate(`Lowest Elevation` = as.numeric(`Lowest Elevation`)) %>%
+  mutate(`Avg. Elevation (ft.)` = str_replace_all(.$`Avg. Elevation (ft.)`, ",", "")) %>%
+  mutate(`Avg. Elevation (ft.)` = as.numeric(`Avg. Elevation (ft.)`)) %>%
+  mutate(`Highest Elevation` = str_replace_all(.$`Highest Elevation`, ",", "")) %>%
+  mutate(`Highest Elevation` = as.numeric(`Highest Elevation`))  
+
+head(elevation)
+```
+
+
+
+### Social Economy   
+Get one dataset *median_income*.
+
+- Median Household Income by State (2013-2017)
+```{r med_income, message=FALSE, warning=FALSE}
+median_income <- read_csv("./data/Median_Income.csv")
+median_income <- median_income %>%
+  set_names(c("location", "Income", "Margin of Error")) %>%
+  slice(3:nrow(median_income)-1) %>%
+  mutate(Income = str_replace_all(.$Income, "\\D", "")) %>%
+  mutate(Income = as.numeric(Income)) %>%
+  mutate(`Margin of Error` = str_replace_all(.$`Margin of Error`, "\\D", "")) %>%
+  mutate(`Margin of Error` = as.numeric(`Margin of Error`)) %>%
+  left_join(state_position, by = "location")
+
+median_income
+```
+
+
+
+
+
+
+# Data Analysis and Visualization
+(((sunshine, elevation, windspeed, humidity
+   median_income
+   hs_indoor18, hs_outdoor18, hs_xc18
+   col_indoor18, col_outdoor18)))
+   
+## Question 1 
+### What does the player performance look like through different states in the U.S.? Are there some states tend to have better performance?
+
+```{r}
+# 前50名次很競爭，後面等比例增長
+ggplot(data = col_indoor18$wmen_800m, mapping = aes(x = Rank, y = Time)) +
+  geom_point()
+
+ggplot(data = col_indoor18$men_800m, mapping = aes(x = Rank, y = Time)) +
+  geom_point()
+
+library(GGally)
+ggpairs(data = col_indoor18$wmen_800m, columns = c(1, 3))
+
+```
+
+```{r}
+# college 1500m
+plot_usmap(data = col_outdoor18$men_1500m, values = "Rank", color = "red") + 
+  scale_fill_continuous(
+    low = "white", high = "red", name = "Ranking", label = scales::comma) + 
+  theme(legend.position = "right")
+# high school 1600m
+plot_usmap(data = hs_outdoor18$boys_1600m, values = "Rank", color = "blue") + 
+  scale_fill_continuous(
+    low = "white", high = "darkblue", name = "Ranking", label = scales::comma) + 
+  theme(legend.position = "right")
+```
+
+```{r}
+# college
+plot_usmap(data = col_outdoor18$wmen_800m, values = "Rank", color = "red") + 
+  scale_fill_continuous(
+    low = "white", high = "red", name = "Ranking", label = scales::comma) + 
+  theme(legend.position = "right")
+
+plot_usmap(data = col_outdoor18$men_1500m, values = "Rank", color = "red") + 
+  scale_fill_continuous(
+    low = "white", high = "red", name = "Ranking") +
+  theme(legend.position = "right")
+
+plot_usmap(data = col_outdoor18$wmen_1500m, values = "Rank", color = "red") + 
+  scale_fill_continuous(
+    low = "white", high = "red", name = "Ranking", label = scales::comma) + 
+  theme(legend.position = "right")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##### KEEP 
+- FWS scholarship
+2019-2020 estimated Federal EFC (Expected Family Contribution) based on parental income only
+(The current fertility rate is 1.76 in the United States (World Bank; 2017))
+(finantial aids)
+https://smart-search.app/resources/2019-2020-efc-quick-reference.pdf
+- AU athletes profiles
+```{r}
+AU_athletes <- 
+  read_html("https://aueagles.com/sports/track-and-field/roster#sidearm-m-roster")
+AU_wmen <- html_table(AU_athletes, fill = T)[[3]]
+AU_men <- html_table(AU_athletes, fill = T)[[4]]
+```
+
+- Average Temperature in 2018 by states
+```{r avg. Temp}
+tavg_url <- 
+  read_html("https://www.ncdc.noaa.gov/cag/statewide/mapping/110/tavg/201812/12/value")
+temperature <- html_table(tavg_url, fill = T)[[1]]
+names(temperature) <- c("state", "Avg. Temperature (°F)", "Rank (124 years)", 
+                        "1901-2000 Mean", "Anomaly")
+temperature
+
+# [X] save to offline
+write_csv(temperature, "./data/save/avgtemp.csv")
+```
+- Max Temperature in 2018 by states
+```{r max Temp}
+tmax_url <- 
+  read_html("https://www.ncdc.noaa.gov/cag/statewide/mapping/110/tmax/201812/12/value")
+max_temperature <- html_table(tmax_url, fill = T)[[1]]
+names(max_temperature) <- c("state", "Max Temperature (°F)", "Rank (124 years)", 
+                            "1901-2000 Mean", "Anomaly")
+max_temperature
+
+# [X] save to offline
+write_csv(max_temperature, "./data/save/maxtemp.csv")
+```
+- Min Temperature in 2018 by states
+```{r min Temp}
+tmin_url <- 
+  read_html("https://www.ncdc.noaa.gov/cag/statewide/mapping/110/tmin/201812/12/value")
+min_temperature <- html_table(tmin_url, fill = T)[[1]]
+names(min_temperature) <- c("state", "Min Temperature (°F)", "Rank (124 years)", 
+                            "1901-2000 Mean", "Anomaly")
+min_temperature
+
+# [X] save to offline
+write_csv(min_temperature, "./data/save/mintemp.csv")
+```
+
+- Average Precipitation (Inches) in 2018 by states
+```{r avg. rainfall}
+rainfall_url <- 
+  read_html("https://www.ncdc.noaa.gov/cag/statewide/mapping/110/pcp/201812/12/value")
+rainfall <- html_table(rainfall_url, fill = T)[[1]]
+names(rainfall) <- c("state", "Avg. Rainfall (inches)", "Rank", 
+                     "1901-2000 Mean", "Anomaly")
+rainfall
+
+# [X] save to offline
+write_csv(rainfall, "./data/save/rainfall.csv")
+rainfall_url <- read_csv("./data/save/rainfall.csv")
+```
+
+
+- Visualize student performance separately by different event and gender
+```{r}
+# boy
+plot_usmap(data = hs_indoor18$boys_800m, values = "Rank", color = "white", labels = TRUE) + 
+  scale_fill_continuous(low = "#0000FF", high = "orange", 
+                        name = "Ranking", label = scales::comma, limits = c(0, 500)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "Top 500 Indoor TF boys (800m)")
+
+# girl
+plot_usmap(data = hs_indoor18$girls_800m, values = "Rank", color = "white", labels = TRUE) + 
+  scale_fill_continuous(low = "#0000FF", high = "orange", 
+                        name = "Ranking", label = scales::comma, limits = c(0, 500)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "Top 500 Indoor TF girls (800m)")
+
+# out boy
+plot_usmap(data = hs_outdoor18$boys_800m, values = "Rank", color = "white", labels = TRUE) + 
+  scale_fill_continuous(low = "#0000FF", high = "orange", 
+                        name = "Ranking", label = scales::comma, limits = c(0, 500)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "Top 500 Outdoor TF boys (800m)")
+
+# out girl
+plot_usmap(data = hs_outdoor18$girls_800m, values = "Rank", color = "white", labels = TRUE) + 
+  scale_fill_continuous(low = "#0000FF", high = "orange", 
+                        name = "Ranking", label = scales::comma, limits = c(0, 500)) + 
+  theme(legend.position = "right", 
+        panel.background = element_rect(colour = "Black")) +
+  labs(title = "Top 500 Outdoor TF girls (800m)")
+```
